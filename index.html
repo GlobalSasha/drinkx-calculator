@@ -40,28 +40,30 @@
     }
     .tip-box {
       display: none;
-      position: absolute;
-      bottom: calc(100% + 10px);
-      left: 50%;
-      transform: translateX(-50%);
+      position: fixed;
       width: 290px;
       background: #1e293b;
       border: 1px solid #475569;
       border-radius: 12px;
       padding: 14px 16px;
-      z-index: 100;
+      z-index: 9999;
       box-shadow: 0 16px 48px rgba(0,0,0,0.5);
       pointer-events: none;
     }
-    .tip-wrap:hover .tip-box { display: block; }
     .tip-box::after {
       content: '';
       position: absolute;
       top: 100%;
-      left: 50%;
+      left: var(--arrow-left, 50%);
       transform: translateX(-50%);
       border: 7px solid transparent;
       border-top-color: #475569;
+    }
+    .tip-box.tip-below::after {
+      top: auto;
+      bottom: 100%;
+      border-top-color: transparent;
+      border-bottom-color: #475569;
     }
   </style>
 </head>
@@ -910,10 +912,55 @@ window.genMarketing = function() {
 /* ═══════════════════════════════════════════════════════════
    INIT
 ═══════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════
+   TOOLTIPS — fixed positioning to escape overflow:hidden
+═══════════════════════════════════════════════════════════ */
+function initTooltips() {
+  document.querySelectorAll('.tip-wrap').forEach(wrap => {
+    const box = wrap.querySelector('.tip-box');
+    if (!box) return;
+
+    wrap.addEventListener('mouseenter', () => {
+      box.style.display = 'block';
+      const bw = 290;
+      const margin = 10;
+      const rect = wrap.getBoundingClientRect();
+      const bh = box.offsetHeight;
+
+      // Horizontal: center on element, clamp to viewport
+      let left = rect.left + rect.width / 2 - bw / 2;
+      left = Math.max(8, Math.min(left, window.innerWidth - bw - 8));
+
+      // Vertical: prefer above, flip below if not enough room
+      let top = rect.top - bh - margin;
+      let arrowPos = '50%';
+      if (top < 8) {
+        top = rect.bottom + margin;
+        box.classList.add('tip-below');
+      } else {
+        box.classList.remove('tip-below');
+      }
+
+      // Recalc arrow X relative to box
+      const centerX = rect.left + rect.width / 2;
+      arrowPos = Math.round(centerX - left) + 'px';
+      box.style.setProperty('--arrow-left', arrowPos);
+
+      box.style.left = left + 'px';
+      box.style.top  = top  + 'px';
+    });
+
+    wrap.addEventListener('mouseleave', () => {
+      box.style.display = 'none';
+    });
+  });
+}
+
 populateInputs();
 initChart();
 setupInputListeners();
 updateAll();
+initTooltips();
 </script>
 </body>
 </html>
