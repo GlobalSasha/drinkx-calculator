@@ -11,6 +11,7 @@
     body { font-family: 'Inter', sans-serif; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .spin { display: inline-block; animation: spin 1s linear infinite; }
+    /* pre-load dynamic Tailwind colours */
     .tw-pre { display:none }
     .tw-pre span {
       color: rgb(5 150 105);
@@ -20,58 +21,899 @@
     }
     input[type=number]::-webkit-inner-spin-button,
     input[type=number]::-webkit-outer-spin-button { opacity:.6 }
+
+    /* Advanced collapsible panel */
+    .adv-panel {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.45s cubic-bezier(0.4,0,0.2,1);
+    }
+    .adv-panel.open { max-height: 800px; }
+
+    /* Tooltip */
+    .tip-wrap {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      cursor: help;
+    }
+    .tip-box {
+      display: none;
+      position: absolute;
+      bottom: calc(100% + 10px);
+      left: 50%;
+      transform: translateX(-50%);
+      width: 290px;
+      background: #1e293b;
+      border: 1px solid #475569;
+      border-radius: 12px;
+      padding: 14px 16px;
+      z-index: 100;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+      pointer-events: none;
+    }
+    .tip-wrap:hover .tip-box { display: block; }
+    .tip-box::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 7px solid transparent;
+      border-top-color: #475569;
+    }
   </style>
 </head>
 <body class="bg-slate-50 min-h-screen">
+
 <div class="tw-pre"><span></span></div>
 <div id="app" class="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8 space-y-10"></div>
+
 <script>
+/* ═══════════════════════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════════════════════ */
 const BASE_DATE = new Date();
+
 const state = {
-  std: { name: 'Обычная кофемашина', basePrice: 700000, parkSize: 1, coffeePrice: 1500, coffeeBlackDose: 18, coffeeMilkDose: 18, milkPrice: 80, milkDose: 200, priceAmericano: 150, priceCappuccino: 200, milkShare: 70, cupsPerDay: 100, opex: 50000 },
-  drx: { name: 'DrinkX', basePrice: 1500000, parkSize: 1, coffeePrice: 1200, coffeeBlackDose: 20, coffeeMilkDose: 20, milkPrice: 80, milkDose: 180, priceAmericano: 150, priceCappuccino: 200, milkShare: 70, cupsPerDay: 100, opex: 30000 },
+  std: {
+    name: 'Обычная кофемашина',
+    basePrice: 700000,  parkSize: 1,
+    coffeePrice: 1500,  coffeeBlackDose: 18, coffeeMilkDose: 18,
+    milkPrice: 80,      milkDose: 200,
+    priceAmericano: 150, priceCappuccino: 200,
+    milkShare: 70,      cupsPerDay: 100,     opex: 50000,
+  },
+  drx: {
+    name: 'DrinkX',
+    basePrice: 1500000, parkSize: 1,
+    coffeePrice: 1200,  coffeeBlackDose: 20, coffeeMilkDose: 20,
+    milkPrice: 80,      milkDose: 180,
+    priceAmericano: 150, priceCappuccino: 200,
+    milkShare: 70,      cupsPerDay: 100,     opex: 30000,
+  },
 };
+
+/* ═══════════════════════════════════════════════════════════
+   CALCULATION
+═══════════════════════════════════════════════════════════ */
 function calc(d) {
   let disc = 0;
-  if (d.parkSize >= 50) disc = 0.10; else if (d.parkSize >= 10) disc = 0.05;
+  if      (d.parkSize >= 50) disc = 0.10;
+  else if (d.parkSize >= 10) disc = 0.05;
+
   const capexTotal = d.basePrice * d.parkSize * (1 - disc);
-  const costAmt = (d.coffeePrice / 1000) * d.coffeeBlackDose;
-  const costCap = ((d.coffeePrice / 1000) * d.coffeeMilkDose) + ((d.milkPrice / 1000) * d.milkDose);
+  const costAmt    = (d.coffeePrice / 1000) * d.coffeeBlackDose;
+  const costCap    = ((d.coffeePrice / 1000) * d.coffeeMilkDose)
+                   + ((d.milkPrice   / 1000) * d.milkDose);
   const mR = d.milkShare / 100, bR = 1 - mR;
-  const avgCost = costAmt * bR + costCap * mR;
-  const avgPrice = d.priceAmericano * bR + d.priceCappuccino * mR;
-  const avgMargin = avgPrice - avgCost;
-  const mCups = d.cupsPerDay * 30 * d.parkSize;
+  const avgCost    = costAmt * bR + costCap * mR;
+  const avgPrice   = d.priceAmericano * bR + d.priceCappuccino * mR;
+  const avgMargin  = avgPrice - avgCost;
+  const mCups      = d.cupsPerDay * 30 * d.parkSize;
+  const cogsPark   = mCups * avgCost;
   const profitPark = mCups * avgMargin - d.opex * d.parkSize;
-  const paybackMo = profitPark > 0 ? capexTotal / profitPark : Infinity;
+  const paybackMo  = profitPark > 0 ? capexTotal / profitPark : Infinity;
+
+  // Yearly metrics
+  const yearlyExpenses = (cogsPark + d.opex * d.parkSize) * 12;
+  const profit1Year    = profitPark * 12;
+  const profit2Years   = profitPark * 24;
+
   let paybackDate = 'Никогда (убыток)';
-  if (isFinite(paybackMo)) { const pd = new Date(BASE_DATE); pd.setMonth(pd.getMonth() + Math.ceil(paybackMo)); let s = pd.toLocaleString('ru-RU', { month: 'long', year: 'numeric' }); paybackDate = s[0].toUpperCase() + s.slice(1); }
-  return { disc: disc * 100, capexTotal, costAmt, costCap, avgCost, avgPrice, avgMargin, profitPark, paybackMo, paybackDate };
+  if (isFinite(paybackMo)) {
+    const pd = new Date(BASE_DATE);
+    pd.setMonth(pd.getMonth() + Math.ceil(paybackMo));
+    let s = pd.toLocaleString('ru-RU', { month: 'long', year: 'numeric' });
+    paybackDate = s[0].toUpperCase() + s.slice(1);
+  }
+  return { disc: disc * 100, capexTotal, costAmt, costCap, avgCost, cogsPark,
+           avgPrice, avgMargin, profitPark, paybackMo, paybackDate,
+           yearlyExpenses, profit1Year, profit2Years };
 }
-const fCur = v => new Intl.NumberFormat('ru-RU', { style:'currency', currency:'RUB', maximumFractionDigits:0 }).format(v);
+
+/* NPV — discounted at 12%/yr over `months` months */
+function calcNPV(profit, capex, months = 36, annualRate = 0.12) {
+  const r = Math.pow(1 + annualRate, 1 / 12) - 1; // monthly rate ≈ 0.949%
+  if (r === 0) return -capex + profit * months;
+  return -capex + profit * (1 - Math.pow(1 + r, -months)) / r;
+}
+
+/* IRR — bisection, return annual %, or null if not solvable */
+function calcIRR(profit, capex, months = 36) {
+  if (profit <= 0 || capex <= 0) return null;
+  if (profit * months < capex) return null; // can't break even
+  let lo = -0.9999, hi = 10.0;
+  for (let i = 0; i < 200; i++) {
+    const mid = (lo + hi) / 2;
+    const r = mid;
+    let npv;
+    if (Math.abs(r) < 1e-9) {
+      npv = -capex + profit * months;
+    } else {
+      npv = -capex + profit * (1 - Math.pow(1 + r, -months)) / r;
+    }
+    if (npv > 0) lo = mid; else hi = mid;
+  }
+  const rMonthly = (lo + hi) / 2;
+  return (Math.pow(1 + rMonthly, 12) - 1) * 100;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   FORMATTERS
+═══════════════════════════════════════════════════════════ */
+const fCur  = v => new Intl.NumberFormat('ru-RU', { style:'currency', currency:'RUB', maximumFractionDigits:0 }).format(v);
 const fCost = v => new Intl.NumberFormat('ru-RU', { style:'currency', currency:'RUB', maximumFractionDigits:2 }).format(v);
-function secHead(t) { return `<div class="bg-slate-100 px-4 py-2 rounded-lg mb-3 mt-5 text-slate-700 font-semibold text-xs uppercase tracking-widest">${t}</div>`; }
-function inputRow(label, id, unit, isPercent) { return `<div class="flex items-center justify-between py-2 border-b border-slate-100 last:border-0"><label class="text-sm text-slate-600 flex-1 pr-3 leading-snug">${label}</label><div class="relative w-36 shrink-0"><input type="number" min="0" ${isPercent ? 'max="100"' : ''} id="${id}" class="w-full pl-3 pr-7 py-1.5 border border-slate-300 rounded-md text-slate-800 text-right text-sm outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400">${unit ? `<span class="absolute right-2 top-1.5 text-slate-400 text-xs pointer-events-none">${unit}</span>` : ''}</div></div>`; }
-function resultRow(label, id, highlight, subId) { if (highlight) return `<div class="flex items-center justify-between py-3 bg-slate-50 px-3 rounded-lg border border-slate-100 mt-1"><span class="text-sm font-semibold text-slate-800">${label}</span><span id="${id}" class="font-bold text-lg text-slate-800 ml-4">—</span></div>`; return `<div class="flex items-center justify-between py-2 border-b border-slate-100 last:border-0"><div class="flex flex-col"><span class="text-sm text-slate-600">${label}</span>${subId ? `<span id="${subId}" class="text-xs text-slate-400 mt-0.5"></span>` : ''}</div><span id="${id}" class="font-medium text-slate-800 ml-4 shrink-0">—</span></div>`; }
-function colCard(key, isDrx) { const d = state[key]; const hdr = isDrx ? 'bg-indigo-600' : 'bg-slate-800'; const brd = isDrx ? 'border-indigo-200 shadow-md ring-1 ring-indigo-50' : 'border-slate-200 shadow-sm'; const ico = isDrx ? '↗' : '☕'; return `<div class="rounded-2xl overflow-hidden border bg-white ${brd}"><div class="px-6 py-5 flex items-center gap-3 ${hdr} text-white"><span class="text-2xl">${ico}</span><h2 class="text-xl font-bold">${d.name}</h2><span id="${key}-disc-badge" class="ml-auto text-xs font-semibold bg-white/20 px-2 py-1 rounded-full hidden"></span></div><div class="p-6">${secHead('Оборудование и парк')}${inputRow('Базовая цена 1 машины (CAPEX)',`${key}-basePrice`,'₽')}${inputRow('Количество машин в парке',`${key}-parkSize`,'шт')}${secHead('Ингредиенты и сырьё')}${inputRow('Стоимость зерна (за 1 кг)',`${key}-coffeePrice`,'₽')}${inputRow('Зерно — чёрный кофе',`${key}-coffeeBlackDose`,'г')}${inputRow('Зерно — молочный напиток',`${key}-coffeeMilkDose`,'г')}${inputRow('Молоко (за 1 л)',`${key}-milkPrice`,'₽')}${inputRow('Расход молока на порцию',`${key}-milkDose`,'мл')}${secHead('Цены и продажи')}${inputRow('Цена Американо',`${key}-priceAmericano`,'₽')}${inputRow('Цена Капучино (300 мл)',`${key}-priceCappuccino`,'₽')}${inputRow('Доля молочных напитков',`${key}-milkShare`,'%',true)}${inputRow('Чашек в день (на 1 машину)',`${key}-cupsPerDay`,'шт')}${secHead('Расходы (OPEX)')}${inputRow('OPEX на 1 точку в месяц',`${key}-opex`,'₽')}<div class="mt-8 border-t-2 border-slate-200 pt-6"><h3 class="text-xl font-bold text-slate-800 mb-4">🧮 Детализация и финансы</h3>${resultRow('Итоговый CAPEX парка',`${key}-capex`,false,`${key}-capex-sub`)}<div class="bg-slate-50 p-4 rounded-xl border border-slate-200 my-4"><p class="text-sm font-semibold text-slate-700 mb-3">Себестоимость и маржа</p>${resultRow('С/с Американо',`${key}-costAmt`)}${resultRow('С/с Капучино',`${key}-costCap`)}<div class="pt-3 mt-3 border-t border-slate-200">${resultRow('Средняя с/с (взвешенная)',`${key}-avgCost`,false,`${key}-avgCost-sub`)}${resultRow('Средняя цена продажи',`${key}-avgPrice`)}${resultRow('Средняя маржа с 1 чашки',`${key}-avgMargin`,true)}</div></div><div class="bg-emerald-50 p-4 rounded-xl border border-emerald-100 mb-3"><div class="flex justify-between items-center"><div><span class="text-sm font-bold text-emerald-800 block">Прибыль парка в месяц</span><span class="text-xs text-emerald-600">До вычета налогов</span></div><span id="${key}-profit" class="text-xl font-black text-emerald-600">—</span></div></div><div class="bg-indigo-50 p-4 rounded-xl border border-indigo-100"><div class="flex justify-between items-center mb-2"><span class="text-sm font-bold text-indigo-900">Срок окупаемости</span><span id="${key}-paybackMo" class="text-lg font-black text-indigo-700">—</span></div><div class="flex justify-between items-center pt-2 border-t border-indigo-200/50"><span class="text-xs font-medium text-indigo-600">📅 Абсолютная дата:</span><span id="${key}-paybackDate" class="text-sm font-semibold text-indigo-800">—</span></div></div></div></div></div>`; }
-function dashCard(id, title, sub, icon) { return `<div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-start gap-4 hover:shadow-md transition-shadow"><div id="${id}-icon" class="p-3 rounded-full shrink-0 text-slate-600 bg-slate-100"><span class="text-xl leading-none">${icon}</span></div><div class="min-w-0"><p class="text-sm text-slate-500 font-medium mb-1">${title}</p><p id="${id}-val" class="text-xl font-bold tracking-tight leading-tight text-slate-800 break-words">—</p><p class="text-xs text-slate-400 mt-1">${sub}</p></div></div>`; }
-document.getElementById('app').innerHTML = `<div class="text-center"><div class="inline-flex items-center gap-2 bg-indigo-100 text-indigo-700 px-4 py-1.5 rounded-full text-sm font-semibold mb-4">↗ Ритейл-калькулятор</div><h1 class="text-3xl md:text-5xl font-extrabold text-slate-900 tracking-tight mb-4">Анализ окупаемости и Cash Flow</h1><p class="text-slate-500 max-w-2xl mx-auto text-lg">Финансовое моделирование парка классических кофемашин в сравнении с экосистемой DrinkX для ритейл сетей.</p></div><div><h2 class="text-xl font-bold text-slate-800 mb-4">◔ Сводный дашборд (преимущества DrinkX)</h2><div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">${dashCard('d-profit','Доп. прибыль в месяц','Разница в чистой прибыли парка','↗')}${dashCard('d-margin','Разница маржи (с чашки)','Экономия на себестоимости','₽')}${dashCard('d-payback','Скорость окупаемости','Разница в возврате инвестиций','⏱')}${dashCard('d-capex','Разница CAPEX','Разница стартовых инвестиций','💼')}</div></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">${colCard('std',false)}${colCard('drx',true)}</div><div class="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200"><h2 class="text-2xl font-bold text-slate-800 flex items-center gap-2 mb-1">↗ Накопительная прибыль (Cash Flow)</h2><p class="text-slate-500 text-sm mb-6">Выход в «плюс» с учётом CAPEX на горизонте 4 года.</p><div style="position:relative;height:400px"><canvas id="cf-chart"></canvas></div><div class="mt-4 flex items-start gap-2 text-xs text-slate-400 bg-slate-50 p-3 rounded-lg">ℹ <p><strong>Формула:</strong> Накопительная прибыль = (Ежемесячная прибыль × Месяцы) − CAPEX.</p></div></div><div class="relative overflow-hidden rounded-3xl shadow-lg border border-indigo-800" style="background:linear-gradient(135deg,#1e1b4b,#0f172a)"><div class="absolute top-0 right-0 p-8 text-9xl opacity-10 select-none pointer-events-none">📊</div><div class="relative z-10 p-6 md:p-8 text-white"><h2 class="text-2xl md:text-3xl font-bold flex items-center gap-3 mb-2">🧮 Умный анализ</h2><p class="text-indigo-300 text-sm mb-6">Выводы и рекомендации строятся на основе ваших цифр — без внешних сервисов</p><div class="flex gap-6 mb-6 border-b border-indigo-800/60"><button id="tab-analytics" onclick="switchTab('analytics')" class="font-semibold pb-3 border-b-2 border-amber-400 text-amber-400 text-sm flex items-center gap-2 transition-colors">🧮 Финансовый аудит</button><button id="tab-marketing" onclick="switchTab('marketing')" class="font-semibold pb-3 border-b-2 border-transparent text-indigo-300 hover:text-indigo-100 text-sm flex items-center gap-2 transition-colors">📣 Маркетинговые идеи</button></div><div id="panel-analytics"><p class="text-indigo-200 mb-5 max-w-3xl text-sm leading-relaxed">Вердикт о выгодности вариантов, анализ ключевого риска и 2 конкретные рекомендации.</p><button onclick="genAnalytics()" class="bg-indigo-500 hover:bg-indigo-400 text-white font-bold py-3 px-8 rounded-xl shadow-lg transition-all flex items-center gap-3 active:scale-95">🧮 Сформировать финансовый аудит</button><div id="ai-analytics-out" class="mt-4"></div></div><div id="panel-marketing" class="hidden"><p class="text-indigo-200 mb-5 max-w-3xl text-sm leading-relaxed">3 маркетинговые идеи под ваш трафик, долю молочных и размер парка.</p><button onclick="genMarketing()" class="font-bold py-3 px-8 rounded-xl shadow-lg transition-all flex items-center gap-3 active:scale-95" style="background:#f59e0b;color:#1c1917">📣 Сгенерировать маркетинговые идеи</button><div id="ai-marketing-out" class="mt-4"></div></div></div></div><div class="text-center text-xs text-slate-400 pb-4">DrinkX ROI Calculator · Расчёты выполняются локально в браузере</div>`;
-function populateInputs() { ['std','drx'].forEach(key => { Object.keys(state[key]).forEach(field => { if (field === 'name') return; const el = document.getElementById(`${key}-${field}`); if (el) el.value = state[key][field]; }); }); }
-function setText(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
-function updateColResults(key, m, d) { setText(`${key}-capex`,fCur(m.capexTotal)); setText(`${key}-capex-sub`,m.disc > 0 ? `Скидка за объём: ${m.disc}%` : 'Скидок нет'); setText(`${key}-costAmt`,fCost(m.costAmt)); setText(`${key}-costCap`,fCost(m.costCap)); setText(`${key}-avgCost`,fCost(m.avgCost)); setText(`${key}-avgCost-sub`,`Доля молочных ${d.milkShare}%`); setText(`${key}-avgPrice`,fCost(m.avgPrice)); setText(`${key}-avgMargin`,fCost(m.avgMargin)); setText(`${key}-profit`,fCur(m.profitPark)); setText(`${key}-paybackMo`,m.paybackMo === Infinity ? '—' : `${m.paybackMo.toFixed(1)} мес.`); setText(`${key}-paybackDate`,m.paybackDate); const pe = document.getElementById(`${key}-profit`); if (pe) pe.className = `text-xl font-black ${m.profitPark >= 0 ? 'text-emerald-600' : 'text-rose-600'}`; const badge = document.getElementById(`${key}-disc-badge`); if (badge) { badge.textContent = `Скидка ${m.disc}%`; badge.classList.toggle('hidden', m.disc === 0); } }
-function updateDashCard(id, value, isPos, isNeutral) { const ve = document.getElementById(`${id}-val`); const ie = document.getElementById(`${id}-icon`); if (!ve || !ie) return; ve.textContent = value; if (isNeutral) { ve.className = 'text-xl font-bold tracking-tight leading-tight text-slate-800 break-words'; ie.className = 'p-3 rounded-full shrink-0 text-slate-600 bg-slate-100'; } else if (isPos) { ve.className = 'text-xl font-bold tracking-tight leading-tight text-emerald-600 break-words'; ie.className = 'p-3 rounded-full shrink-0 text-emerald-600 bg-emerald-100'; } else { ve.className = 'text-xl font-bold tracking-tight leading-tight text-rose-600 break-words'; ie.className = 'p-3 rounded-full shrink-0 text-rose-600 bg-rose-100'; } }
+const fPct  = v => v == null ? 'N/A' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+
+/* ═══════════════════════════════════════════════════════════
+   HTML TEMPLATES
+═══════════════════════════════════════════════════════════ */
+function secHead(t) {
+  return `<div class="bg-slate-100 px-4 py-2 rounded-lg mb-3 mt-5 text-slate-700 font-semibold text-xs uppercase tracking-widest">${t}</div>`;
+}
+
+function inputRow(label, id, unit, isPercent) {
+  return `
+  <div class="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
+    <label class="text-sm text-slate-600 flex-1 pr-3 leading-snug">${label}</label>
+    <div class="relative w-36 shrink-0">
+      <input type="number" min="0" ${isPercent ? 'max="100"' : ''} id="${id}"
+        class="w-full pl-3 pr-7 py-1.5 border border-slate-300 rounded-md text-slate-800 text-right text-sm outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400">
+      ${unit ? `<span class="absolute right-2 top-1.5 text-slate-400 text-xs pointer-events-none">${unit}</span>` : ''}
+    </div>
+  </div>`;
+}
+
+function resultRow(label, id, highlight, subId) {
+  if (highlight) return `
+  <div class="flex items-center justify-between py-3 bg-slate-50 px-3 rounded-lg border border-slate-100 mt-1">
+    <span class="text-sm font-semibold text-slate-800">${label}</span>
+    <span id="${id}" class="font-bold text-lg text-slate-800 ml-4">—</span>
+  </div>`;
+  return `
+  <div class="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
+    <div class="flex flex-col">
+      <span class="text-sm text-slate-600">${label}</span>
+      ${subId ? `<span id="${subId}" class="text-xs text-slate-400 mt-0.5"></span>` : ''}
+    </div>
+    <span id="${id}" class="font-medium text-slate-800 ml-4 shrink-0">—</span>
+  </div>`;
+}
+
+function colCard(key, isDrx) {
+  const d = state[key];
+  const hdr = isDrx ? 'bg-indigo-600' : 'bg-slate-800';
+  const brd = isDrx ? 'border-indigo-200 shadow-md ring-1 ring-indigo-50' : 'border-slate-200 shadow-sm';
+  const ico = isDrx ? '↗' : '☕';
+  const coffeeNoun  = isDrx ? 'концентрата' : 'зерна';
+  const coffeeCap   = isDrx ? 'Концентрат'  : 'Зерно';
+  const accumBg     = isDrx ? 'bg-indigo-50 border-indigo-100' : 'bg-amber-50 border-amber-100';
+  const accumTitle  = isDrx ? 'text-indigo-800' : 'text-amber-800';
+  const accumSub    = isDrx ? 'text-indigo-700' : 'text-amber-700';
+  const accumDiv    = isDrx ? 'border-indigo-200/50' : 'border-amber-200/50';
+  return `
+  <div class="rounded-2xl overflow-hidden border bg-white ${brd}">
+    <div class="px-6 py-5 flex items-center gap-3 ${hdr} text-white">
+      <span class="text-2xl">${ico}</span>
+      <h2 class="text-xl font-bold">${d.name}</h2>
+      <span id="${key}-disc-badge" class="ml-auto text-xs font-semibold bg-white/20 px-2 py-1 rounded-full hidden"></span>
+    </div>
+    <div class="p-6">
+      ${secHead('Оборудование и парк')}
+      ${inputRow('Базовая цена 1 машины (CAPEX)', `${key}-basePrice`,       '₽')}
+      ${inputRow('Количество машин в парке',       `${key}-parkSize`,        'шт')}
+      ${secHead('Ингредиенты и сырьё')}
+      ${inputRow(`Стоимость ${coffeeNoun} (за 1 кг)`, `${key}-coffeePrice`,     '₽')}
+      ${inputRow(`${coffeeCap} — чёрный кофе`,         `${key}-coffeeBlackDose`, 'г')}
+      ${inputRow(`${coffeeCap} — молочный напиток`,    `${key}-coffeeMilkDose`,  'г')}
+      ${inputRow('Молоко (за 1 л)',                    `${key}-milkPrice`,       '₽')}
+      ${inputRow('Расход молока на порцию',            `${key}-milkDose`,        'мл')}
+      ${secHead('Цены и продажи')}
+      ${inputRow('Цена Американо',                     `${key}-priceAmericano`,  '₽')}
+      ${inputRow('Цена Капучино (300 мл)',              `${key}-priceCappuccino`, '₽')}
+      ${inputRow('Доля молочных напитков',             `${key}-milkShare`,       '%', true)}
+      ${inputRow('Чашек в день (на 1 машину)',         `${key}-cupsPerDay`,      'шт')}
+      ${secHead('Расходы (OPEX)')}
+      ${inputRow('OPEX на 1 точку в месяц',           `${key}-opex`,            '₽')}
+
+      <div class="mt-8 border-t-2 border-slate-200 pt-6">
+        <h3 class="text-xl font-bold text-slate-800 mb-4">🧮 Детализация и финансы</h3>
+        ${resultRow('Итоговый CAPEX парка', `${key}-capex`, false, `${key}-capex-sub`)}
+        <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 my-4">
+          <p class="text-sm font-semibold text-slate-700 mb-3">Себестоимость и маржа</p>
+          ${resultRow(`С/с Американо (${isDrx ? 'концентрат' : 'зерно'})`,   `${key}-costAmt`)}
+          ${resultRow(`С/с Капучино (${isDrx ? 'концентрат' : 'зерно'})`,    `${key}-costCap`)}
+          <div class="pt-3 mt-3 border-t border-slate-200">
+            ${resultRow('Средняя с/с (взвешенная)', `${key}-avgCost`,   false, `${key}-avgCost-sub`)}
+            ${resultRow('Средняя цена продажи',     `${key}-avgPrice`)}
+            ${resultRow('Средняя маржа с 1 чашки', `${key}-avgMargin`, true)}
+          </div>
+        </div>
+        <div class="bg-emerald-50 p-4 rounded-xl border border-emerald-100 mb-3">
+          <div class="flex justify-between items-center">
+            <div>
+              <span class="text-sm font-bold text-emerald-800 block">Прибыль парка в месяц</span>
+              <span class="text-xs text-emerald-600">До вычета налогов</span>
+            </div>
+            <span id="${key}-profit" class="text-xl font-black text-emerald-600">—</span>
+          </div>
+        </div>
+        <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-100 mb-3">
+          <div class="flex justify-between items-center mb-2">
+            <span class="text-sm font-bold text-indigo-900">Срок окупаемости</span>
+            <span id="${key}-paybackMo" class="text-lg font-black text-indigo-700">—</span>
+          </div>
+          <div class="flex justify-between items-center pt-2 border-t border-indigo-200/50">
+            <span class="text-xs font-medium text-indigo-600">📅 Абсолютная дата:</span>
+            <span id="${key}-paybackDate" class="text-sm font-semibold text-indigo-800">—</span>
+          </div>
+        </div>
+
+        <!-- Накопительные показатели -->
+        <div class="p-4 rounded-xl border ${accumBg} mt-3">
+          <p class="text-sm font-bold ${accumTitle} mb-3">📊 Накопительные показатели</p>
+          <div class="space-y-2">
+            <div class="flex justify-between items-center">
+              <span class="text-xs ${accumSub}">Прибыль за 1 год</span>
+              <span id="${key}-profit1yr" class="text-sm font-bold ${accumTitle}">—</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-xs ${accumSub}">Прибыль за 2 года</span>
+              <span id="${key}-profit2yr" class="text-sm font-bold ${accumTitle}">—</span>
+            </div>
+            <div class="flex justify-between items-center pt-2 border-t ${accumDiv}">
+              <span class="text-xs ${accumSub}">Затраты за год (COGS + OPEX)</span>
+              <span id="${key}-yearexp" class="text-sm font-semibold ${accumSub}">—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function dashCard(id, title, sub, icon) {
+  return `
+  <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-start gap-4 hover:shadow-md transition-shadow">
+    <div id="${id}-icon" class="p-3 rounded-full shrink-0 text-slate-600 bg-slate-100">
+      <span class="text-xl leading-none">${icon}</span>
+    </div>
+    <div class="min-w-0">
+      <p class="text-sm text-slate-500 font-medium mb-1">${title}</p>
+      <p id="${id}-val" class="text-xl font-bold tracking-tight leading-tight text-slate-800 break-words">—</p>
+      <p class="text-xs text-slate-400 mt-1">${sub}</p>
+    </div>
+  </div>`;
+}
+
+function advCard(id, label, tooltipTitle, tooltipBody) {
+  return `
+  <div class="bg-white/5 border border-white/10 rounded-2xl p-5 flex flex-col gap-3">
+    <div class="tip-wrap self-start">
+      <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">${label}</span>
+      <span class="text-slate-500 text-xs">ⓘ</span>
+      <div class="tip-box">
+        <p class="text-amber-300 font-bold text-xs mb-2">${tooltipTitle}</p>
+        <p class="text-slate-300 text-xs leading-relaxed">${tooltipBody}</p>
+      </div>
+    </div>
+    <div class="flex gap-6 items-end flex-wrap">
+      <div>
+        <p class="text-xs text-slate-500 mb-1">Обычная кофемашина</p>
+        <p id="${id}-std" class="text-lg font-bold text-slate-300">—</p>
+      </div>
+      <div>
+        <p class="text-xs text-indigo-400 mb-1">DrinkX</p>
+        <p id="${id}-drx" class="text-2xl font-black text-indigo-300">—</p>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   BUILD PAGE
+═══════════════════════════════════════════════════════════ */
+document.getElementById('app').innerHTML = `
+
+  <!-- Header -->
+  <div class="text-center">
+    <div class="inline-flex items-center gap-2 bg-indigo-100 text-indigo-700 px-4 py-1.5 rounded-full text-sm font-semibold mb-4">
+      ↗ Ритейл-калькулятор
+    </div>
+    <h1 class="text-3xl md:text-5xl font-extrabold text-slate-900 tracking-tight mb-4">
+      Анализ окупаемости и Cash Flow
+    </h1>
+    <p class="text-slate-500 max-w-2xl mx-auto text-lg">
+      Финансовое моделирование парка классических кофемашин в сравнении с экосистемой DrinkX для ритейл сетей.
+    </p>
+  </div>
+
+  <!-- Hero Banner -->
+  <div class="relative overflow-hidden rounded-3xl p-6 md:p-8" style="background:linear-gradient(135deg,#312e81 0%,#1e1b4b 55%,#0f172a 100%)">
+    <div class="absolute inset-0 pointer-events-none select-none" style="background:radial-gradient(ellipse at 80% 50%,rgba(129,140,248,0.15) 0%,transparent 60%)"></div>
+    <div class="relative z-10 flex flex-col md:flex-row md:items-center gap-6 md:gap-10">
+      <div class="flex-1">
+        <p class="text-indigo-300 text-xs font-semibold uppercase tracking-widest mb-2">3-летний горизонт · при текущих параметрах</p>
+        <h2 class="text-xl md:text-2xl font-extrabold text-white leading-snug">
+          За 3 года DrinkX принесёт дополнительно
+        </h2>
+        <p id="hero-net3yr" class="text-4xl md:text-5xl font-black text-amber-400 mt-3 leading-none">—</p>
+        <p id="hero-net3yr-sub" class="text-slate-400 text-xs mt-2"></p>
+      </div>
+      <div class="shrink-0 bg-white/10 border border-white/20 rounded-2xl px-6 py-5 text-center min-w-[190px]">
+        <p class="text-indigo-300 text-xs font-semibold uppercase tracking-wider mb-2">Стоимость промедления</p>
+        <p id="hero-delay" class="text-2xl font-black text-rose-400 leading-none">—</p>
+        <p class="text-slate-400 text-xs mt-2 leading-relaxed">теряется каждый месяц<br>без перехода на DrinkX</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dashboard -->
+  <div>
+    <h2 class="text-xl font-bold text-slate-800 mb-4">◔ Сводный дашборд (преимущества DrinkX)</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      ${dashCard('d-profit',  'Доп. прибыль в месяц',    'Разница в чистой прибыли парка',    '↗')}
+      ${dashCard('d-margin',  'Разница маржи (с чашки)', 'Экономия на себестоимости',         '₽')}
+      ${dashCard('d-payback', 'Скорость окупаемости',    'Разница в возврате инвестиций',      '⏱')}
+      ${dashCard('d-opex',    'Экономия OPEX / год',     'Снижение операционных расходов',     '⚙️')}
+    </div>
+  </div>
+
+  <!-- Calculators -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+    ${colCard('std', false)}
+    ${colCard('drx', true)}
+  </div>
+
+  <!-- Chart -->
+  <div class="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200">
+    <h2 class="text-2xl font-bold text-slate-800 flex items-center gap-2 mb-1">↗ Накопительная прибыль (Cash Flow)</h2>
+    <p class="text-slate-500 text-sm mb-6">Выход в «плюс» с учётом CAPEX на горизонте 4 года.</p>
+    <div style="position:relative;height:400px">
+      <canvas id="cf-chart"></canvas>
+    </div>
+    <div class="mt-4 flex items-start gap-2 text-xs text-slate-400 bg-slate-50 p-3 rounded-lg">
+      ℹ <p><strong>Формула:</strong> Накопительная прибыль = (Ежемесячная прибыль × Месяцы) − CAPEX. Пересечение нулевой оси = полная окупаемость.</p>
+    </div>
+  </div>
+
+  <!-- Advanced Section -->
+  <div class="rounded-3xl border border-slate-700 overflow-hidden" style="background:linear-gradient(135deg,#1e293b,#0f172a)">
+    <button onclick="toggleAdv()" class="w-full flex items-center justify-between px-6 md:px-8 py-5 text-left">
+      <div class="flex items-center gap-4">
+        <span class="text-2xl">🔬</span>
+        <div>
+          <span class="text-white font-bold text-lg">Advanced — Углублённый анализ</span>
+          <span class="block text-slate-400 text-xs mt-0.5">NPV · IRR · Прибыль на машину · Наведи на ⓘ для объяснения</span>
+        </div>
+      </div>
+      <span id="adv-chevron" class="text-slate-400 text-xl transition-transform duration-300 ml-4 shrink-0">▼</span>
+    </button>
+    <div id="adv-panel" class="adv-panel">
+      <div class="px-6 md:px-8 pb-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+        ${advCard('adv-npv', 'NPV (36 мес.)',
+          'Чистая приведённая стоимость',
+          'Сколько денег в сегодняшних ценах принесёт проект за 3 года, с учётом ставки дисконтирования 12%/год. Формула: NPV = −CAPEX + Прибыль × (1−(1+r)^−36) / r, где r = (1,12)^(1/12)−1 ≈ 0,949%/мес. Положительный NPV означает прибыльность выше барьерной ставки.'
+        )}
+        ${advCard('adv-irr', 'IRR (36 мес.)',
+          'Внутренняя норма доходности',
+          'Годовая ставка доходности, при которой NPV = 0. Чем выше IRR, тем привлекательнее проект. Если IRR > стоимости капитала (12%) — инвестиция оправдана. Рассчитывается методом бисекции: ищем месячную ставку r, при которой ∑PV(прибылей) = CAPEX, затем приводим к годовой: IRR = (1+r)^12 − 1.'
+        )}
+        ${advCard('adv-ppm', 'Прибыль / машина',
+          'Нормализованная прибыль на 1 единицу парка',
+          'Ежемесячная чистая прибыль парка, делённая на количество машин. Позволяет корректно сравнивать эффективность при разных размерах парка. Формула: Прибыль_парка ÷ Количество_машин в парке (в месяц).'
+        )}
+      </div>
+    </div>
+  </div>
+
+  <!-- Analysis Section -->
+  <div class="relative overflow-hidden rounded-3xl shadow-lg border border-indigo-800" style="background:linear-gradient(135deg,#1e1b4b,#0f172a)">
+    <div class="absolute top-0 right-0 p-8 text-9xl opacity-10 select-none pointer-events-none">📊</div>
+    <div class="relative z-10 p-6 md:p-8 text-white">
+      <h2 class="text-2xl md:text-3xl font-bold flex items-center gap-3 mb-2">
+        🧮 Умный анализ
+      </h2>
+      <p class="text-indigo-300 text-sm mb-6">Выводы и рекомендации строятся на основе ваших цифр — без внешних сервисов</p>
+
+      <!-- Tabs -->
+      <div class="flex gap-6 mb-6 border-b border-indigo-800/60">
+        <button id="tab-analytics" onclick="switchTab('analytics')"
+          class="font-semibold pb-3 border-b-2 border-amber-400 text-amber-400 text-sm flex items-center gap-2 transition-colors">
+          🧮 Финансовый аудит
+        </button>
+        <button id="tab-marketing" onclick="switchTab('marketing')"
+          class="font-semibold pb-3 border-b-2 border-transparent text-indigo-300 hover:text-indigo-100 text-sm flex items-center gap-2 transition-colors">
+          📣 Маркетинговые идеи
+        </button>
+      </div>
+
+      <div id="panel-analytics">
+        <p class="text-indigo-200 mb-5 max-w-3xl text-sm leading-relaxed">
+          Вердикт о выгодности вариантов, анализ ключевого риска и 2 конкретные рекомендации — на основе ваших текущих параметров.
+        </p>
+        <button onclick="genAnalytics()"
+          class="bg-indigo-500 hover:bg-indigo-400 text-white font-bold py-3 px-8 rounded-xl shadow-lg transition-all flex items-center gap-3 active:scale-95">
+          🧮 Сформировать финансовый аудит
+        </button>
+        <div id="ai-analytics-out" class="mt-4"></div>
+      </div>
+
+      <div id="panel-marketing" class="hidden">
+        <p class="text-indigo-200 mb-5 max-w-3xl text-sm leading-relaxed">
+          3 маркетинговые идеи, подобранные под ваш трафик, долю молочных напитков и размер парка.
+        </p>
+        <button onclick="genMarketing()"
+          class="font-bold py-3 px-8 rounded-xl shadow-lg transition-all flex items-center gap-3 active:scale-95"
+          style="background:#f59e0b;color:#1c1917">
+          📣 Сгенерировать маркетинговые идеи
+        </button>
+        <div id="ai-marketing-out" class="mt-4"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="text-center text-xs text-slate-400 pb-4">
+    DrinkX ROI Calculator · Расчёты выполняются локально в браузере · Данные не передаются на сторонние серверы
+  </div>
+`;
+
+/* ═══════════════════════════════════════════════════════════
+   POPULATE INPUTS FROM STATE
+═══════════════════════════════════════════════════════════ */
+function populateInputs() {
+  ['std','drx'].forEach(key => {
+    Object.keys(state[key]).forEach(field => {
+      if (field === 'name') return;
+      const el = document.getElementById(`${key}-${field}`);
+      if (el) el.value = state[key][field];
+    });
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   DOM UPDATE HELPERS
+═══════════════════════════════════════════════════════════ */
+function setText(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val;
+}
+
+function updateColResults(key, m, d) {
+  setText(`${key}-capex`,        fCur(m.capexTotal));
+  setText(`${key}-capex-sub`,    m.disc > 0 ? `Скидка за объём: ${m.disc}%` : 'Скидок нет');
+  setText(`${key}-costAmt`,      fCost(m.costAmt));
+  setText(`${key}-costCap`,      fCost(m.costCap));
+  setText(`${key}-avgCost`,      fCost(m.avgCost));
+  setText(`${key}-avgCost-sub`,  `Доля молочных ${d.milkShare}%`);
+  setText(`${key}-avgPrice`,     fCost(m.avgPrice));
+  setText(`${key}-avgMargin`,    fCost(m.avgMargin));
+  setText(`${key}-profit`,       fCur(m.profitPark));
+  setText(`${key}-paybackMo`,    m.paybackMo === Infinity ? '—' : `${m.paybackMo.toFixed(1)} мес.`);
+  setText(`${key}-paybackDate`,  m.paybackDate);
+  // Накопительные показатели
+  setText(`${key}-profit1yr`,    fCur(m.profit1Year));
+  setText(`${key}-profit2yr`,    fCur(m.profit2Years));
+  setText(`${key}-yearexp`,      fCur(m.yearlyExpenses));
+
+  // Colour profit based on sign
+  const pe = document.getElementById(`${key}-profit`);
+  if (pe) pe.className = `text-xl font-black ${m.profitPark >= 0 ? 'text-emerald-600' : 'text-rose-600'}`;
+
+  // Discount badge
+  const badge = document.getElementById(`${key}-disc-badge`);
+  if (badge) {
+    badge.textContent = `Скидка ${m.disc}%`;
+    badge.classList.toggle('hidden', m.disc === 0);
+  }
+}
+
+function updateDashCard(id, value, isPos, isNeutral) {
+  const ve = document.getElementById(`${id}-val`);
+  const ie = document.getElementById(`${id}-icon`);
+  if (!ve || !ie) return;
+  ve.textContent = value;
+  if (isNeutral) {
+    ve.className = 'text-xl font-bold tracking-tight leading-tight text-slate-800 break-words';
+    ie.className = 'p-3 rounded-full shrink-0 text-slate-600 bg-slate-100';
+  } else if (isPos) {
+    ve.className = 'text-xl font-bold tracking-tight leading-tight text-emerald-600 break-words';
+    ie.className = 'p-3 rounded-full shrink-0 text-emerald-600 bg-emerald-100';
+  } else {
+    ve.className = 'text-xl font-bold tracking-tight leading-tight text-rose-600 break-words';
+    ie.className = 'p-3 rounded-full shrink-0 text-rose-600 bg-rose-100';
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CHART
+═══════════════════════════════════════════════════════════ */
 let chart = null;
-function initChart() { const ctx = document.getElementById('cf-chart').getContext('2d'); const labels = Array.from({length:49},(_,i)=>i); chart = new Chart(ctx, { type:'line', data:{ labels, datasets:[{label:'Обычная кофемашина',data:new Array(49).fill(0),borderColor:'#475569',borderWidth:3,pointRadius:0,tension:0.1},{label:'DrinkX',data:new Array(49).fill(0),borderColor:'#4f46e5',borderWidth:4,pointRadius:0,tension:0.1}]}, options:{ responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false}, plugins:{ legend:{position:'top',labels:{usePointStyle:true,color:'#475569',font:{family:'Inter',size:13}}}, tooltip:{callbacks:{title:items=>`Месяц ${items[0].label}`,label:ctx=>` ${ctx.dataset.label}: ${fCur(ctx.parsed.y)}`}} }, scales:{ x:{grid:{display:false},ticks:{color:'#64748b',font:{family:'Inter',size:12},maxTicksLimit:9,callback:function(val){return `${this.getLabelForValue(val)} мес`;}}}, y:{grid:{color:'#e2e8f0'},ticks:{color:'#64748b',font:{family:'Inter',size:12},callback:v=>`${(v/1000000).toFixed(1)}M`}} } } }); }
-function updateChart(sm, dm) { if (!chart) return; for (let i=0;i<=48;i++) { chart.data.datasets[0].data[i]=Math.round(sm.profitPark*i-sm.capexTotal); chart.data.datasets[1].data[i]=Math.round(dm.profitPark*i-dm.capexTotal); } chart.update('none'); }
-function updateAll() { const sm=calc(state.std); const dm=calc(state.drx); updateColResults('std',sm,state.std); updateColResults('drx',dm,state.drx); const profitDiff=dm.profitPark-sm.profitPark; const marginDiff=dm.avgMargin-sm.avgMargin; const paybackDiff=sm.paybackMo-dm.paybackMo; const capexDiff=sm.capexTotal-dm.capexTotal; updateDashCard('d-profit',(profitDiff>0?'+':'')+fCur(profitDiff),profitDiff>=0,false); updateDashCard('d-margin',(marginDiff>0?'+':'')+fCost(marginDiff),marginDiff>=0,false); const bothLoss=!isFinite(sm.paybackMo)&&!isFinite(dm.paybackMo); updateDashCard('d-payback',bothLoss?'Оба убыточны':paybackDiff===0?'Одинаково':paybackDiff>0?`Быстрее на ${paybackDiff.toFixed(1)} мес.`:`Медленнее на ${Math.abs(paybackDiff).toFixed(1)} мес.`,paybackDiff>0,paybackDiff===0||bothLoss); updateDashCard('d-capex',capexDiff===0?'Одинаково':(capexDiff>0?'Дешевле на ':'Дороже на ')+fCur(Math.abs(capexDiff)),capexDiff>0,capexDiff===0); updateChart(sm,dm); }
-function setupInputListeners() { ['std','drx'].forEach(key => { Object.keys(state[key]).forEach(field => { if (field==='name') return; const el=document.getElementById(`${key}-${field}`); if (el) el.addEventListener('input',()=>{ state[key][field]=Number(el.value)||0; updateAll(); }); }); }); }
-window.switchTab = function(tab) { ['analytics','marketing'].forEach(t => { const active=t===tab; document.getElementById(`tab-${t}`).className=`font-semibold pb-3 border-b-2 text-sm flex items-center gap-2 transition-colors ${active?'border-amber-400 text-amber-400':'border-transparent text-indigo-300 hover:text-indigo-100'}`; document.getElementById(`panel-${t}`).classList.toggle('hidden',!active); }); };
-function generateAuditText(sm,dm,std,drx){const L=[];const drxWinProfit=dm.profitPark>sm.profitPark;const drxWinPayback=isFinite(dm.paybackMo)&&(!isFinite(sm.paybackMo)||dm.paybackMo<sm.paybackMo);const profitDiff=dm.profitPark-sm.profitPark;const profitDiffPct=sm.profitPark>0?Math.abs((profitDiff/sm.profitPark)*100).toFixed(1):null;const paybackDiffMo=isFinite(sm.paybackMo)&&isFinite(dm.paybackMo)?Math.abs(sm.paybackMo-dm.paybackMo).toFixed(1):null;L.push('ВЕРДИКТ');if(sm.profitPark<0&&dm.profitPark<0){L.push('Обе модели убыточны при текущих параметрах. Пересмотрите цены на напитки и/или структуру OPEX.');}else if(drxWinProfit&&drxWinPayback){L.push(`DrinkX выгоднее по обоим показателям: окупается быстрее${paybackDiffMo?` (на ${paybackDiffMo} мес.)`:''} и даёт больше прибыли${profitDiffPct?` (+${profitDiffPct}%, это ${fCur(profitDiff)}/мес.)`:`(${fCur(profitDiff)}/мес.)`}.`);L.push(`OPEX DrinkX: ${fCur(drx.opex)}/точку vs ${fCur(std.opex)}, маржа/чашка: ${fCost(dm.avgMargin)} vs ${fCost(sm.avgMargin)}.`);}else if(!drxWinProfit&&!drxWinPayback){L.push(`Обычная кофемашина выгоднее: меньше CAPEX (${fCur(std.basePrice*std.parkSize)} vs ${fCur(drx.basePrice*drx.parkSize)}).`);}else if(drxWinProfit&&!drxWinPayback){L.push(`DrinkX даёт больше прибыли в месяц, но из-за высокого CAPEX окупается дольше.`);}else{L.push('Обычная кофемашина окупается быстрее, но DrinkX обгоняет по ежемесячной прибыли.');}L.push('');L.push('КЛЮЧЕВЫЕ ЦИФРЫ');L.push(`- Прибыль/мес — ${std.name}: ${fCur(sm.profitPark)} | ${drx.name}: ${fCur(dm.profitPark)}`);L.push(`- Маржа/чашка — ${std.name}: ${fCost(sm.avgMargin)} | ${drx.name}: ${fCost(dm.avgMargin)}`);L.push(`- Срок окупаемости — ${std.name}: ${isFinite(sm.paybackMo)?sm.paybackMo.toFixed(1)+' мес.':'не окупается'} | ${drx.name}: ${isFinite(dm.paybackMo)?dm.paybackMo.toFixed(1)+' мес.':'не окупается'}`);L.push(`- CAPEX парка — ${std.name}: ${fCur(sm.capexTotal)} | ${drx.name}: ${fCur(dm.capexTotal)}`);L.push('');L.push('ГЛАВНЫЙ ФИНАНСОВЫЙ РИСК');const rD=dm;const rS=drx;if(!isFinite(rD.paybackMo)){L.push('DrinkX не окупается при текущих параметрах. Поднимите цены или снизьте OPEX.');}else{const profitAt80=(rS.cupsPerDay*0.8*30*rS.parkSize)*rD.avgMargin-rS.opex*rS.parkSize;const newPayback=profitAt80>0?(rD.capexTotal/profitAt80).toFixed(1):null;if(profitAt80<0){L.push(`Высокая чувствительность к трафику. −20% продаж переводит DrinkX в убыток. Резерв: ${fCur(Math.abs(profitAt80)*3)} (3 мес.).`);}else if(newPayback&&parseFloat(newPayback)>rD.paybackMo*1.5){L.push(`При −20% продаж срок окупаемости DrinkX вырастает с ${rD.paybackMo.toFixed(1)} до ${newPayback} мес.`);}else{L.push(`Устойчивая модель: при −20% трафика DrinkX остаётся прибыльным (${fCur(profitAt80)}/мес.).`);}}L.push('');L.push('2 РЕКОМЕНДАЦИИ');const opexRatio=rS.opex/(rD.profitPark+rS.opex);if(rS.milkShare>=65){const s=(rS.milkDose*0.15/1000)*rS.milkPrice*rS.cupsPerDay*30*rS.parkSize;L.push(`1. Снизить норму молока на 15–20 мл при сохранении вкуса. Экономия ~${fCur(s)}/мес.`);}else{L.push(`1. Поднять долю молочных напитков до 60% (сейчас ${rS.milkShare}%). Акцент в меню, обучение на апгрейд.`);}if(isFinite(rD.paybackMo)&&opexRatio>0.35){L.push(`2. Ревизия OPEX (${fCur(rS.opex)}/точку — ${(opexRatio*100).toFixed(0)}% от прибыли). График работы vs трафик, нормы расходников.`);}else{L.push(`2. A/B тест повышения цены на 20 ₽ на 1–2 точках на 2 недели. Потенциал: +${fCur(rS.cupsPerDay*30*rS.parkSize*20)}/мес.`);}return L.join('\n');}
-function generateMarketingText(dm,drx){const L=[];L.push('3 МАРКЕТИНГОВЫЕ ИДЕИ ДЛЯ РОСТА ПРОДАЖ НА +20%');L.push('');if(drx.milkShare>=60){L.push('☕  ИДЕЯ 1 — «Сезонный хит»');L.push(`Доля молочных — ${drx.milkShare}%. Лимитированный вкус месяца (сироп). Стоимость: ~400–600 ₽. Доп. маржа +50 ₽ с чашки.`);L.push('Ожидаемый эффект: +10–15% к среднему чеку молочных.');}else{L.push('☕  ИДЕЯ 1 — «Молочный апгрейд»');L.push(`Молочные — ${drx.milkShare}%, их маржа выше. Предлагайте апгрейд: «Капучино вместо американо — +${drx.priceCappuccino-drx.priceAmericano} ₽?»`);L.push('Ожидаемый эффект: рост доли молочных до 50–55%.');}L.push('');if(drx.cupsPerDay<80){L.push('🎯  ИДЕЯ 2 — «Карта лояльности»');L.push(`${drx.cupsPerDay} чашек/день — есть резерв. 6-я чашка бесплатно. +20% частота → +${fCur(drx.cupsPerDay*0.2*30*drx.parkSize*dm.avgMargin)}/мес.`);L.push('Ожидаемый эффект: +15–25% к частоте визитов.');}else if(drx.cupsPerDay<150){L.push('🎯  ИДЕЯ 2 — «Утренний поток»');L.push('Скидка 15–20 ₽ на американо с 07:00 до 09:00. Утренние клиенты становятся постоянными.');L.push('Ожидаемый эффект: +20–30 чашек/день в тихое время.');}else{L.push('🎯  ИДЕЯ 2 — «Комбо-апгрейд»');L.push(`При ${drx.cupsPerDay} чашках/день — комбо «напиток + снек» −10% на снек. Чек +50–100 ₽.`);}L.push('');if(drx.parkSize>=3){L.push(`📍  ИДЕЯ 3 — «Сетевой паспорт» (${drx.parkSize} точек)`);L.push(`Посети все ${drx.parkSize} точки за месяц — получи бесплатный напиток. Кросс-трафик без бюджета.`);L.push('Ожидаемый эффект: +5–10% суммарных продаж.');}else if(drx.parkSize===2){L.push('📍  ИДЕЯ 3 — «Партнёрство с соседним бизнесом»');L.push('Офис или фитнес-клуб рядом: их клиенты — скидка 10% по промокоду. Нулевые затраты.');L.push('Ожидаемый эффект: +10–20 новых клиентов/день.');}else{L.push('📍  ИДЕЯ 3 — «Корпоративные продажи»');const c=20*dm.avgMargin*0.9;L.push(`Абонемент 20 чашек/мес. по цене 18 (−10%). 1 клиент = ~${fCur(c*30)}/мес. стабильной выручки.`);}return L.join('\n');}
-function showResult(elId,text,regenFn){document.getElementById(elId).innerHTML=`<div class="p-6 md:p-8 rounded-2xl border border-white/10 mt-4" style="background:rgba(255,255,255,.05)"><p class="text-slate-100 text-sm leading-7 whitespace-pre-wrap">${text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p><div class="mt-8 pt-5 border-t border-white/10"><button onclick="${regenFn}()" class="bg-white/10 hover:bg-white/20 text-white font-medium py-2.5 px-5 rounded-lg transition-colors text-sm border border-white/10">🔄 Пересчитать с новыми данными</button></div></div>`;}
-window.genAnalytics=function(){const sm=calc(state.std);const dm=calc(state.drx);showResult('ai-analytics-out',generateAuditText(sm,dm,state.std,state.drx),'genAnalytics');};
-window.genMarketing=function(){const dm=calc(state.drx);showResult('ai-marketing-out',generateMarketingText(dm,state.drx),'genMarketing');};
-populateInputs(); initChart(); setupInputListeners(); updateAll();
+
+function initChart() {
+  const ctx = document.getElementById('cf-chart').getContext('2d');
+  const labels = Array.from({length: 49}, (_, i) => i);
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Обычная кофемашина',
+          data: new Array(49).fill(0),
+          borderColor: '#475569',
+          borderWidth: 3,
+          pointRadius: 0,
+          tension: 0.1,
+        },
+        {
+          label: 'DrinkX',
+          data: new Array(49).fill(0),
+          borderColor: '#4f46e5',
+          borderWidth: 4,
+          pointRadius: 0,
+          tension: 0.1,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: { usePointStyle: true, color: '#475569', font: { family: 'Inter', size: 13 } },
+        },
+        tooltip: {
+          callbacks: {
+            title: items => `Месяц ${items[0].label}`,
+            label: ctx => ` ${ctx.dataset.label}: ${fCur(ctx.parsed.y)}`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: {
+            color: '#64748b',
+            font: { family: 'Inter', size: 12 },
+            maxTicksLimit: 9,
+            callback: function(val) {
+              return `${this.getLabelForValue(val)} мес`;
+            },
+          },
+        },
+        y: {
+          grid: { color: '#e2e8f0' },
+          ticks: {
+            color: '#64748b',
+            font: { family: 'Inter', size: 12 },
+            callback: v => `${(v / 1_000_000).toFixed(1)}M`,
+          },
+        },
+      },
+    },
+  });
+}
+
+function updateChart(sm, dm) {
+  if (!chart) return;
+  for (let i = 0; i <= 48; i++) {
+    chart.data.datasets[0].data[i] = Math.round(sm.profitPark * i - sm.capexTotal);
+    chart.data.datasets[1].data[i] = Math.round(dm.profitPark * i - dm.capexTotal);
+  }
+  chart.update('none');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MAIN UPDATE
+═══════════════════════════════════════════════════════════ */
+function updateAll() {
+  const sm = calc(state.std);
+  const dm = calc(state.drx);
+
+  updateColResults('std', sm, state.std);
+  updateColResults('drx', dm, state.drx);
+
+  // ── Dashboard ──────────────────────────────────────────
+  const profitDiff  = dm.profitPark - sm.profitPark;
+  const marginDiff  = dm.avgMargin  - sm.avgMargin;
+  const paybackDiff = sm.paybackMo  - dm.paybackMo;
+  const opexSavYr   = (state.std.opex - state.drx.opex) * state.drx.parkSize * 12;
+
+  updateDashCard('d-profit',
+    (profitDiff > 0 ? '+' : '') + fCur(profitDiff),
+    profitDiff >= 0, false);
+
+  updateDashCard('d-margin',
+    (marginDiff > 0 ? '+' : '') + fCost(marginDiff),
+    marginDiff >= 0, false);
+
+  const bothLoss = !isFinite(sm.paybackMo) && !isFinite(dm.paybackMo);
+  updateDashCard('d-payback',
+    bothLoss ? 'Оба убыточны' :
+    paybackDiff === 0 ? 'Одинаково' :
+    paybackDiff > 0 ? `Быстрее на ${paybackDiff.toFixed(1)} мес.` :
+    `Медленнее на ${Math.abs(paybackDiff).toFixed(1)} мес.`,
+    paybackDiff > 0, paybackDiff === 0 || bothLoss);
+
+  updateDashCard('d-opex',
+    opexSavYr === 0 ? 'Одинаково' :
+    (opexSavYr > 0 ? 'Экономия ' : 'Перерасход ') + fCur(Math.abs(opexSavYr)),
+    opexSavYr > 0, opexSavYr === 0);
+
+  // ── Hero Banner ────────────────────────────────────────
+  const net3yr = profitDiff * 36 - (dm.capexTotal - sm.capexTotal);
+  const hEl    = document.getElementById('hero-net3yr');
+  const hSub   = document.getElementById('hero-net3yr-sub');
+  if (hEl) {
+    hEl.textContent = (net3yr >= 0 ? '+' : '') + fCur(net3yr);
+    hEl.style.color = net3yr >= 0 ? '#fbbf24' : '#f87171';
+  }
+  if (hSub) {
+    hSub.textContent = net3yr >= 0
+      ? `(с учётом разницы CAPEX ${fCur(dm.capexTotal - sm.capexTotal)})`
+      : `DrinkX менее выгоден на 3-летнем горизонте при текущих параметрах`;
+  }
+  const delayEl = document.getElementById('hero-delay');
+  if (delayEl) {
+    delayEl.textContent = fCur(Math.abs(profitDiff)) + '/мес.';
+    delayEl.style.color = profitDiff > 0 ? '#f87171' : '#6b7280';
+  }
+
+  // ── Advanced Section ───────────────────────────────────
+  const stdNPV = calcNPV(sm.profitPark, sm.capexTotal);
+  const drxNPV = calcNPV(dm.profitPark, dm.capexTotal);
+  const stdIRR = calcIRR(sm.profitPark, sm.capexTotal);
+  const drxIRR = calcIRR(dm.profitPark, dm.capexTotal);
+  const stdPPM = state.std.parkSize > 0 ? sm.profitPark / state.std.parkSize : 0;
+  const drxPPM = state.drx.parkSize > 0 ? dm.profitPark / state.drx.parkSize : 0;
+
+  setText('adv-npv-std', fCur(stdNPV));
+  setText('adv-npv-drx', fCur(drxNPV));
+  setText('adv-irr-std', stdIRR != null ? fPct(stdIRR) : 'N/A');
+  setText('adv-irr-drx', drxIRR != null ? fPct(drxIRR) : 'N/A');
+  setText('adv-ppm-std', fCur(stdPPM));
+  setText('adv-ppm-drx', fCur(drxPPM));
+
+  updateChart(sm, dm);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ADVANCED TOGGLE
+═══════════════════════════════════════════════════════════ */
+window.toggleAdv = function() {
+  const panel   = document.getElementById('adv-panel');
+  const chevron = document.getElementById('adv-chevron');
+  const isOpen  = panel.classList.toggle('open');
+  chevron.style.transform = isOpen ? 'rotate(180deg)' : '';
+};
+
+/* ═══════════════════════════════════════════════════════════
+   INPUT LISTENERS
+═══════════════════════════════════════════════════════════ */
+function setupInputListeners() {
+  ['std','drx'].forEach(key => {
+    Object.keys(state[key]).forEach(field => {
+      if (field === 'name') return;
+      const el = document.getElementById(`${key}-${field}`);
+      if (el) el.addEventListener('input', () => {
+        state[key][field] = Number(el.value) || 0;
+        updateAll();
+      });
+    });
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TABS
+═══════════════════════════════════════════════════════════ */
+window.switchTab = function(tab) {
+  ['analytics','marketing'].forEach(t => {
+    const active = t === tab;
+    document.getElementById(`tab-${t}`).className =
+      `font-semibold pb-3 border-b-2 text-sm flex items-center gap-2 transition-colors ${
+        active ? 'border-amber-400 text-amber-400' : 'border-transparent text-indigo-300 hover:text-indigo-100'
+      }`;
+    document.getElementById(`panel-${t}`).classList.toggle('hidden', !active);
+  });
+};
+
+/* ═══════════════════════════════════════════════════════════
+   RULE-BASED TEXT GENERATORS
+═══════════════════════════════════════════════════════════ */
+function generateAuditText(sm, dm, std, drx) {
+  const L = [];
+
+  const drxWinProfit   = dm.profitPark  > sm.profitPark;
+  const drxWinPayback  = isFinite(dm.paybackMo) && (!isFinite(sm.paybackMo) || dm.paybackMo < sm.paybackMo);
+  const profitDiff     = dm.profitPark  - sm.profitPark;
+  const profitDiffPct  = sm.profitPark  > 0 ? Math.abs((profitDiff / sm.profitPark) * 100).toFixed(1) : null;
+  const paybackDiffMo  = isFinite(sm.paybackMo) && isFinite(dm.paybackMo)
+                          ? Math.abs(sm.paybackMo - dm.paybackMo).toFixed(1) : null;
+
+  L.push('ВЕРДИКТ');
+  if (sm.profitPark < 0 && dm.profitPark < 0) {
+    L.push('Обе модели убыточны при текущих параметрах. Пересмотрите цены на напитки и/или структуру OPEX — прежде чем сравнивать сроки окупаемости.');
+  } else if (drxWinProfit && drxWinPayback) {
+    L.push(`DrinkX выгоднее по обоим ключевым показателям: окупается быстрее${paybackDiffMo ? ` (на ${paybackDiffMo} мес.)` : ''} и даёт больше чистой прибыли${profitDiffPct ? ` (+${profitDiffPct}%, это ${fCur(profitDiff)}/мес.)` : ` (${fCur(profitDiff)}/мес.)`}.`);
+    L.push(`Это объясняется более низким OPEX на точку (${fCur(drx.opex)} vs ${fCur(std.opex)}) и более высокой маржой с чашки (${fCost(dm.avgMargin)} vs ${fCost(sm.avgMargin)}).`);
+  } else if (!drxWinProfit && !drxWinPayback) {
+    const d = sm.profitPark - dm.profitPark;
+    const pct = dm.profitPark > 0 ? Math.abs((d / dm.profitPark) * 100).toFixed(1) : null;
+    L.push(`Обычная кофемашина выгоднее при текущих вводных: окупается быстрее${paybackDiffMo ? ` (на ${paybackDiffMo} мес.)` : ''} и генерирует больше прибыли${pct ? ` (+${pct}%, ${fCur(d)}/мес.)` : ''}.`);
+    L.push(`Причина — значительно меньший CAPEX (${fCur(std.basePrice * std.parkSize)} vs ${fCur(drx.basePrice * drx.parkSize)}), который перевешивает преимущества DrinkX по марже.`);
+  } else if (drxWinProfit && !drxWinPayback) {
+    L.push(`DrinkX даёт больше прибыли в месяц (${fCur(Math.abs(profitDiff))} разница), но из-за более высокого CAPEX окупается дольше.`);
+    L.push(`Если горизонт планирования — свыше ${isFinite(dm.paybackMo) ? Math.ceil(dm.paybackMo) : '?'} мес., DrinkX предпочтительнее. Для короткого горизонта — обычная машина.`);
+  } else {
+    L.push(`Обычная кофемашина окупается быстрее за счёт низкого CAPEX, но DrinkX обгоняет по ежемесячной прибыли.`);
+    L.push(`Решение зависит от горизонта: быстрый возврат vs. долгосрочная доходность.`);
+  }
+
+  L.push('');
+  L.push('КЛЮЧЕВЫЕ ЦИФРЫ');
+  L.push(`- Прибыль/мес — ${std.name}: ${fCur(sm.profitPark)} | ${drx.name}: ${fCur(dm.profitPark)}`);
+  L.push(`- Маржа/чашка  — ${std.name}: ${fCost(sm.avgMargin)} | ${drx.name}: ${fCost(dm.avgMargin)}`);
+  L.push(`- Срок окупаемости — ${std.name}: ${isFinite(sm.paybackMo) ? sm.paybackMo.toFixed(1) + ' мес.' : 'не окупается'} | ${drx.name}: ${isFinite(dm.paybackMo) ? dm.paybackMo.toFixed(1) + ' мес.' : 'не окупается'}`);
+  L.push(`- CAPEX парка — ${std.name}: ${fCur(sm.capexTotal)} | ${drx.name}: ${fCur(dm.capexTotal)}`);
+
+  L.push('');
+  L.push('ГЛАВНЫЙ ФИНАНСОВЫЙ РИСК');
+  const rD = dm; const rS = drx;
+
+  if (!isFinite(rD.paybackMo)) {
+    L.push('Модель DrinkX не окупается при текущих параметрах. Ключевой риск — недостаточная маржинальность: нужно либо поднять цены, либо снизить OPEX.');
+  } else {
+    const profitAt80 = (rS.cupsPerDay * 0.8 * 30 * rS.parkSize) * rD.avgMargin - rS.opex * rS.parkSize;
+    const newPayback = profitAt80 > 0 ? (rD.capexTotal / profitAt80).toFixed(1) : null;
+
+    if (profitAt80 < 0) {
+      L.push(`Высокая чувствительность к трафику. Снижение продаж на 20% (с ${rS.cupsPerDay} до ${Math.round(rS.cupsPerDay * 0.8)} чашек/день) переводит DrinkX в убыток.`);
+      L.push(`Рекомендуется создать резервный фонд не менее ${fCur(Math.abs(profitAt80) * 3)} (3 месяца покрытия убытка при таком сценарии).`);
+    } else if (newPayback && parseFloat(newPayback) > rD.paybackMo * 1.5) {
+      L.push(`Умеренная чувствительность к трафику. При −20% продаж срок окупаемости DrinkX вырастает с ${rD.paybackMo.toFixed(1)} до ${newPayback} мес.`);
+      L.push(`Дополнительный риск — рост цен на концентрат: каждые +100 ₽/кг снижают маржу DrinkX приблизительно на ${fCost((rS.coffeeMilkDose / 1000) * 100 * (rS.milkShare / 100) + (rS.coffeeBlackDose / 1000) * 100 * (1 - rS.milkShare / 100))} с чашки.`);
+    } else {
+      L.push(`Модель устойчива: даже при −20% трафика DrinkX остаётся прибыльным (${fCur(profitAt80)}/мес.), срок окупаемости вырастет до ~${newPayback} мес.`);
+      L.push(`Основной риск — рост стоимости молока. Каждые +10 ₽/л увеличивают с/с капучино на ${fCost((rS.milkDose / 1000) * 10)} и снижают ежемесячную прибыль парка приблизительно на ${fCur((rS.milkDose / 1000) * 10 * (rS.milkShare / 100) * rS.cupsPerDay * 30 * rS.parkSize)}.`);
+    }
+  }
+
+  L.push('');
+  L.push('2 РЕКОМЕНДАЦИИ ПО РОСТУ МАРЖИНАЛЬНОСТИ');
+
+  const opexRatio = rS.opex / (rD.profitPark + rS.opex);
+  if (rS.milkShare >= 65) {
+    const milkSaving15 = (rS.milkDose / 1000) * rS.milkPrice * (rS.milkShare / 100) * rS.cupsPerDay * 30 * rS.parkSize * 0.15;
+    L.push(`1. Оптимизация нормы молока. Доля молочных напитков — ${rS.milkShare}%. Уменьшение порции молока на 15–20 мл при той же подаче (более высокая температура, лучшее взбивание) снизит с/с капучино на ${fCost((rS.milkDose * 0.15 / 1000) * rS.milkPrice)} за чашку. По парку это примерно ${fCur(milkSaving15)}/мес. без видимого изменения продукта.`);
+  } else {
+    const extraIfMilk60 = (0.60 - rS.milkShare / 100) * rS.cupsPerDay * 30 * rS.parkSize * (rD.avgMargin - rD.avgCost * 0.1);
+    L.push(`1. Повышение доли молочных напитков. Сейчас ${rS.milkShare}% — молочные, хотя их маржа выше американо. Целевой ориентир — 60%. Маркеры: визуальное меню с акцентом на капучино, тренинг на «допродажу». Потенциал: +${fCur(Math.max(0, extraIfMilk60))}/мес. при той же аудитории.`);
+  }
+
+  if (isFinite(rD.paybackMo) && opexRatio > 0.35) {
+    const opexCut15 = rS.opex * rS.parkSize * 0.15;
+    L.push(`2. Ревизия OPEX. Операционные расходы (${fCur(rS.opex)}/точку) составляют ${(opexRatio * 100).toFixed(0)}% от валовой прибыли — это много. Аудит трёх статей: (а) графики работы vs. реальный трафик по часам, (б) расход расходников через контроль норм, (в) групповые закупки на уровне сети. Снижение OPEX на 15% высвобождает ${fCur(opexCut15)}/мес.`);
+  } else {
+    const priceUp = 20;
+    const extraProfit = rS.cupsPerDay * 30 * rS.parkSize * priceUp;
+    L.push(`2. Тест повышения цены. Текущие цены: американо ${rS.priceAmericano} ₽, капучино ${rS.priceCappuccino} ₽. Повышение на ${priceUp} ₽ при сохранении трафика добавит ${fCur(extraProfit)}/мес. к прибыли парка. Рекомендуем A/B тест: поднять цены на 1–2 точках на 2 недели и сравнить конверсию.`);
+  }
+
+  return L.join('\n');
+}
+
+function generateMarketingText(dm, drx) {
+  const L = [];
+
+  L.push('3 МАРКЕТИНГОВЫЕ ИДЕИ ДЛЯ РОСТА ПРОДАЖ НА +20% ЗА МЕСЯЦ');
+  L.push('');
+
+  if (drx.milkShare >= 60) {
+    L.push('☕  ИДЕЯ 1 — «Сезонный хит» (капитализировать на молочных напитках)');
+    L.push(`У вас ${drx.milkShare}% продаж — молочные. Запустите лимитированный вкус месяца: один сироп (карамель, лаванда, фисташка) только на этот месяц. Ограниченность создаёт срочность, сторис в соцсетях — виральность. Стоимость запуска: 1 бутылка сиропа (~400–600 ₽), доп. маржа — ${fCost(50 * (drx.milkShare / 100))} с чашки.`);
+    L.push(`Ожидаемый эффект: +10–15% к среднему чеку молочных позиций, рост трафика через UGC.`);
+  } else {
+    L.push('☕  ИДЕЯ 1 — «Молочный апгрейд» (поднять долю молочных)');
+    L.push(`Молочные — только ${drx.milkShare}% продаж, хотя маржа у них выше. Обучите команду предлагать «апгрейд»: «Хотите капучино вместо американо — всего +${drx.priceCappuccino - drx.priceAmericano} ₽?». Добавьте яркое меню-стоппер на точке.`);
+    L.push(`Ожидаемый эффект: рост доли молочных до 50–55%, прирост средней маржи с чашки ~${fCost((0.55 - drx.milkShare / 100) * (dm.avgMargin * 0.2))}.`);
+  }
+  L.push('');
+
+  if (drx.cupsPerDay < 80) {
+    L.push('🎯  ИДЕЯ 2 — «Карта лояльности» (удержание и рост частоты)');
+    L.push(`${drx.cupsPerDay} чашек/день — есть резерв роста. Простейшая механика: каждая 6-я чашка бесплатно (стоимость бонуса — ${fCost(dm.avgCost)}, с/с одной чашки). При увеличении частоты визитов на 20% парк получает дополнительно ~${fCur(drx.cupsPerDay * 0.2 * 30 * drx.parkSize * dm.avgMargin)}/мес.`);
+    L.push(`Ожидаемый эффект: +15–25% к частоте повторных визитов за первые 30 дней.`);
+  } else if (drx.cupsPerDay < 150) {
+    L.push('🎯  ИДЕЯ 2 — «Утренний поток» (захват офф-пик часов)');
+    L.push(`Предложите скидку 15–20 ₽ на американо с 07:00 до 09:00. Потеря на одной чашке компенсируется объёмом и тем, что утренние клиенты становятся постоянными. Доп. трафик +${Math.round(drx.cupsPerDay * 0.15)} чашек/день в тихое время не ест в прайм.`);
+    L.push(`Ожидаемый эффект: +20–30 чашек/день в утреннее окно, высокая конверсия в постоянных гостей.`);
+  } else {
+    L.push('🎯  ИДЕЯ 2 — «Комбо-апгрейд» (рост среднего чека при высоком трафике)');
+    L.push(`При ${drx.cupsPerDay} чашках/день трафик уже сильный — фокус на чеке. Запустите комбо «Напиток + выпечка/снек» со скидкой 10% на позицию. Снек приносит маржу, напиток фиксирует привычку.`);
+    L.push(`Ожидаемый эффект: рост среднего чека на 50–100 ₽, без увеличения трафика.`);
+  }
+  L.push('');
+
+  if (drx.parkSize >= 3) {
+    L.push(`📍  ИДЕЯ 3 — «Сетевой паспорт» (использовать масштаб ${drx.parkSize} точек)`);
+    L.push(`Запустите «кофейный паспорт»: посети все ${drx.parkSize} точки за месяц — получи бесплатный напиток. Создаёт кросс-трафик между точками и геймификацию без бюджета на рекламу.`);
+    L.push(`Ожидаемый эффект: +5–10% к суммарным продажам за счёт перераспределения трафика, рост узнаваемости сети.`);
+  } else if (drx.parkSize === 2) {
+    L.push('📍  ИДЕЯ 3 — «Партнёрство с соседним бизнесом»');
+    L.push(`Договоритесь с офисом, фитнес-клубом или магазином рядом: их клиенты получают скидку 10% по промокоду, вы — гарантированный поток без бюджета на рекламу.`);
+    L.push(`Ожидаемый эффект: +10–20 новых клиентов/день с первой недели.`);
+  } else {
+    L.push('📍  ИДЕЯ 3 — «Корпоративные продажи»');
+    L.push(`Один офис с 20 сотрудниками — это 20+ чашек/день в шаговой доступности. Предложите корпоративный тариф: абонемент на 20 чашек/мес. по цене 18 (−10%). Вы фиксируете объём заранее, компания получает удобство.`);
+    const corpExtra = 20 * dm.avgMargin * 0.9;
+    L.push(`Ожидаемый эффект: 1 корпоративный клиент добавляет ~${fCur(corpExtra * 30)}/мес. стабильной выручки.`);
+  }
+
+  return L.join('\n');
+}
+
+function showResult(elId, text, regenFn) {
+  document.getElementById(elId).innerHTML = `
+    <div class="p-6 md:p-8 rounded-2xl border border-white/10 mt-4" style="background:rgba(255,255,255,.05)">
+      <p class="text-slate-100 text-sm leading-7 whitespace-pre-wrap">${text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>
+      <div class="mt-8 pt-5 border-t border-white/10">
+        <button onclick="${regenFn}()"
+          class="bg-white/10 hover:bg-white/20 text-white font-medium py-2.5 px-5 rounded-lg transition-colors text-sm border border-white/10">
+          🔄 Пересчитать с новыми данными
+        </button>
+      </div>
+    </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ACTIONS
+═══════════════════════════════════════════════════════════ */
+window.genAnalytics = function() {
+  const sm   = calc(state.std);
+  const dm   = calc(state.drx);
+  const text = generateAuditText(sm, dm, state.std, state.drx);
+  showResult('ai-analytics-out', text, 'genAnalytics');
+};
+
+window.genMarketing = function() {
+  const dm   = calc(state.drx);
+  const text = generateMarketingText(dm, state.drx);
+  showResult('ai-marketing-out', text, 'genMarketing');
+};
+
+/* ═══════════════════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════════════════ */
+populateInputs();
+initChart();
+setupInputListeners();
+updateAll();
 </script>
 </body>
 </html>
