@@ -593,6 +593,7 @@ function initChart() {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      animation: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: {
@@ -637,7 +638,7 @@ function updateChart(sm, dm) {
     chart.data.datasets[0].data[i] = Math.round(sm.profitPark * i - sm.capexTotal);
     chart.data.datasets[1].data[i] = Math.round(dm.profitPark * i - dm.capexTotal);
   }
-  chart.update('none');
+  chart.update();
 }
 
 /* ═══════════════════════════════════════════════════════════
