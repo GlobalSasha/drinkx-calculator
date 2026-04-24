@@ -6,12 +6,79 @@
   <title>DrinkX — Калькулятор для ритейл сетей</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
-    body { font-family: 'Inter', sans-serif; }
+    /* ═══ NEXUS INTERFACE · design system ═══
+       Palette · #E4E2DD neutral · #F97316 accent · #0F172A ink · #94A3B8 border
+       Rhythm · 4px base · Radii · 0px (flat) or 31px (hero)
+       Type · System font · light 300 display · light 300 body · medium 500 labels
+    */
+    :root {
+      --nx-bg: #E4E2DD;
+      --nx-surface: #FFFFFF;
+      --nx-ink: #0F172A;
+      --nx-accent: #F97316;
+      --nx-muted: #64748B;
+      --nx-border: #94A3B8;
+      --nx-border-soft: #CBD5E1;
+    }
+    * { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+    html, body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+      font-weight: 300;
+      letter-spacing: -0.01em;
+      color: var(--nx-ink);
+    }
+    body {
+      background: var(--nx-bg);
+      background-image:
+        linear-gradient(rgba(148,163,184,0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(148,163,184,0.06) 1px, transparent 1px);
+      background-size: 32px 32px;
+    }
+    /* Display hierarchy — light weights per spec */
+    h1, .nx-display { font-weight: 300 !important; letter-spacing: -0.05em; line-height: 1.05; }
+    h2 { font-weight: 400 !important; letter-spacing: -0.02em; }
+    h3 { font-weight: 500 !important; }
+    /* Labels — medium, uppercase-capable */
+    .nx-label { font-size: 12px; font-weight: 500; line-height: 16px; letter-spacing: 0.02em; }
+
+    /* Hairline border utility */
+    .nx-border { border: 1px solid var(--nx-border-soft); }
+    .nx-border-strong { border: 1px solid var(--nx-border); }
+
+    /* Flat card surfaces */
+    .nx-card { background: var(--nx-surface); border: 1px solid var(--nx-border-soft); border-radius: 0; }
+    .nx-card-hero { background: var(--nx-surface); border: 1px solid var(--nx-border-soft); border-radius: 31px; }
+
+    /* Pill button (primary CTA) */
+    .nx-btn-primary {
+      background: var(--nx-ink); color: #FFFFFF;
+      border-radius: 9999px; padding: 6px 18px;
+      font-weight: 500; font-size: 12px; letter-spacing: 0.02em;
+      transition: background 150ms ease;
+    }
+    .nx-btn-primary:hover { background: var(--nx-accent); }
+
+    /* Input fields — flat, hairline, no rounded blobs */
+    input[type="number"] {
+      background: var(--nx-surface) !important;
+      border: 1px solid var(--nx-border-soft) !important;
+      border-radius: 0 !important;
+      font-weight: 400 !important;
+      transition: border-color 150ms ease, background 150ms ease;
+    }
+    input[type="number"]:focus {
+      outline: none;
+      border-color: var(--nx-ink) !important;
+      background: #F8F7F3 !important;
+    }
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { opacity:.4 }
+
     @keyframes spin { to { transform: rotate(360deg); } }
     .spin { display: inline-block; animation: spin 1s linear infinite; }
-    /* pre-load dynamic Tailwind colours */
+
+    /* pre-load dynamic Tailwind colours (semantic — kept for profit/loss) */
     .tw-pre { display:none }
     .tw-pre span {
       color: rgb(5 150 105);
@@ -19,8 +86,6 @@
       background-color: #d1fae5;
       background-color: #ffe4e6;
     }
-    input[type=number]::-webkit-inner-spin-button,
-    input[type=number]::-webkit-outer-spin-button { opacity:.6 }
 
     /* Advanced collapsible panel */
     .adv-panel {
@@ -30,7 +95,7 @@
     }
     .adv-panel.open { max-height: 800px; }
 
-    /* Tooltip */
+    /* Tooltip — reframed on light surface */
     .tip-wrap {
       position: relative;
       display: inline-flex;
@@ -42,12 +107,12 @@
       display: none;
       position: fixed;
       width: 290px;
-      background: #1e293b;
-      border: 1px solid #475569;
-      border-radius: 12px;
+      background: var(--nx-ink);
+      border: 1px solid #334155;
+      border-radius: 0;
       padding: 14px 16px;
       z-index: 9999;
-      box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+      box-shadow: 0 16px 48px rgba(15,23,42,0.35);
       pointer-events: none;
     }
     .tip-box::after {
@@ -57,20 +122,35 @@
       left: var(--arrow-left, 50%);
       transform: translateX(-50%);
       border: 7px solid transparent;
-      border-top-color: #475569;
+      border-top-color: #334155;
     }
     .tip-box.tip-below::after {
       top: auto;
       bottom: 100%;
       border-top-color: transparent;
-      border-bottom-color: #475569;
+      border-bottom-color: #334155;
+    }
+
+    /* Subtle Nexus "line lattice" nod for hero card (per WebGL section of spec, CSS-only) */
+    .nx-lattice {
+      position: relative; overflow: hidden;
+    }
+    .nx-lattice::before {
+      content: ''; position: absolute; inset: 0;
+      background-image:
+        linear-gradient(rgba(249,115,22,0.12) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(249,115,22,0.12) 1px, transparent 1px);
+      background-size: 24px 24px;
+      mask-image: radial-gradient(ellipse at 80% 50%, black 20%, transparent 75%);
+      -webkit-mask-image: radial-gradient(ellipse at 80% 50%, black 20%, transparent 75%);
+      pointer-events: none;
     }
   </style>
 </head>
-<body class="bg-slate-50 min-h-screen">
+<body style="background:var(--nx-bg)" class="min-h-screen">
 
 <div class="tw-pre"><span></span></div>
-<div id="app" class="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8 space-y-10"></div>
+<div id="app" class="max-w-7xl mx-auto" style="padding:28px 32px 48px;display:flex;flex-direction:column;gap:24px"></div>
 
 <script>
 /* ═══════════════════════════════════════════════════════════
@@ -173,58 +253,52 @@ const fPct  = v => v == null ? 'N/A' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
    HTML TEMPLATES
 ═══════════════════════════════════════════════════════════ */
 function secHead(t) {
-  return `<div class="bg-slate-100 px-4 py-2 rounded-lg mb-3 mt-5 text-slate-700 font-semibold text-xs uppercase tracking-widest">${t}</div>`;
+  return `<div class="nx-label" style="color:var(--nx-muted);text-transform:uppercase;margin:14px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--nx-border-soft);letter-spacing:0.08em;font-size:11px">${t}</div>`;
 }
 
 function inputRow(label, id, unit, isPercent) {
   return `
-  <div class="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
-    <label class="text-sm text-slate-600 flex-1 pr-3 leading-snug">${label}</label>
-    <div class="relative w-36 shrink-0">
+  <div class="flex items-center justify-between" style="padding:6px 0;border-bottom:1px solid rgba(203,213,225,0.4)">
+    <label class="flex-1 pr-3 leading-snug" style="font-size:12px;color:var(--nx-ink);font-weight:300">${label}</label>
+    <div class="relative w-32 shrink-0">
       <input type="number" min="0" ${isPercent ? 'max="100"' : ''} id="${id}"
-        class="w-full pl-3 pr-7 py-1.5 border border-slate-300 rounded-md text-slate-800 text-right text-sm outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400">
-      ${unit ? `<span class="absolute right-2 top-1.5 text-slate-400 text-xs pointer-events-none">${unit}</span>` : ''}
+        class="w-full text-right" style="padding:4px 26px 4px 8px;font-size:12px;font-weight:400;color:var(--nx-ink)">
+      ${unit ? `<span class="absolute pointer-events-none" style="right:8px;top:5px;font-size:10px;color:var(--nx-muted);font-weight:400">${unit}</span>` : ''}
     </div>
   </div>`;
 }
 
 function resultRow(label, id, highlight, subId) {
   if (highlight) return `
-  <div class="flex items-center justify-between py-3 bg-slate-50 px-3 rounded-lg border border-slate-100 mt-1">
-    <span class="text-sm font-semibold text-slate-800">${label}</span>
-    <span id="${id}" class="font-bold text-lg text-slate-800 ml-4">—</span>
+  <div class="flex items-center justify-between" style="padding:8px 10px;margin-top:6px;background:#FFFFFF;border:1px solid var(--nx-border-soft);border-radius:0">
+    <span style="font-size:12px;font-weight:500;color:var(--nx-ink)">${label}</span>
+    <span id="${id}" style="font-size:15px;font-weight:500;color:var(--nx-ink);letter-spacing:-0.02em;margin-left:12px">—</span>
   </div>`;
   return `
-  <div class="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
+  <div class="flex items-center justify-between" style="padding:5px 0;border-bottom:1px solid rgba(203,213,225,0.4)">
     <div class="flex flex-col">
-      <span class="text-sm text-slate-600">${label}</span>
-      ${subId ? `<span id="${subId}" class="text-xs text-slate-400 mt-0.5"></span>` : ''}
+      <span style="font-size:12px;color:var(--nx-ink);font-weight:300">${label}</span>
+      ${subId ? `<span id="${subId}" style="font-size:10px;color:var(--nx-muted);margin-top:1px;font-weight:300"></span>` : ''}
     </div>
-    <span id="${id}" class="font-medium text-slate-800 ml-4 shrink-0">—</span>
+    <span id="${id}" style="font-size:12px;font-weight:500;color:var(--nx-ink);margin-left:12px;flex-shrink:0">—</span>
   </div>`;
 }
 
 function colCard(key, isDrx) {
   const d = state[key];
-  const hdr = isDrx ? 'bg-indigo-600' : 'bg-slate-800';
-  const brd = isDrx ? 'border-indigo-200 shadow-md ring-1 ring-indigo-50' : 'border-slate-200 shadow-sm';
-  const ico = isDrx ? '↗' : '☕';
+  const hdrBg   = isDrx ? 'var(--nx-accent)' : 'var(--nx-ink)';
   const coffeeNoun  = isDrx ? 'концентрата' : 'зерна';
   const coffeeCap   = isDrx ? 'Концентрат'  : 'Зерно';
-  const accumBg     = isDrx ? 'bg-indigo-50 border-indigo-100' : 'bg-amber-50 border-amber-100';
-  const accumTitle  = isDrx ? 'text-indigo-800' : 'text-amber-800';
-  const accumSub    = isDrx ? 'text-indigo-700' : 'text-amber-700';
-  const accumDiv    = isDrx ? 'border-indigo-200/50' : 'border-amber-200/50';
+  const accentCol   = isDrx ? 'var(--nx-accent)' : 'var(--nx-ink)';
   return `
-  <div class="rounded-2xl overflow-hidden border bg-white ${brd}">
-    <div class="px-6 py-5 flex items-center gap-3 ${hdr} text-white">
-      <span class="text-2xl">${ico}</span>
-      <h2 class="text-xl font-bold">${d.name}</h2>
-      <span id="${key}-disc-badge" class="ml-auto text-xs font-semibold bg-white/20 px-2 py-1 rounded-full hidden"></span>
+  <div class="nx-card overflow-hidden" style="${isDrx ? 'border-color:var(--nx-ink);border-width:2px' : ''}">
+    <div class="flex items-center gap-3" style="padding:12px 20px;background:${hdrBg};color:#FFFFFF">
+      <h2 style="font-size:15px;font-weight:500;letter-spacing:0.02em;color:#FFFFFF;text-transform:uppercase">${d.name}</h2>
+      <span id="${key}-disc-badge" class="ml-auto nx-label hidden" style="background:rgba(255,255,255,0.18);color:#FFFFFF;padding:2px 10px;border-radius:9999px;font-size:10px"></span>
     </div>
-    <div class="p-6">
+    <div style="padding:14px 20px 20px">
       ${secHead('Оборудование и парк')}
-      ${inputRow(isDrx ? 'Базовая цена 1 машины (CAPEX)<span style="display:block;font-size:11px;color:#94a3b8;font-weight:400;margin-top:2px">Модель DrinkX S100</span>' : 'Базовая цена 1 машины (CAPEX)', `${key}-basePrice`,       '₽')}
+      ${inputRow(isDrx ? 'Базовая цена 1 машины (CAPEX)<span style="display:block;font-size:10px;color:var(--nx-muted);font-weight:400;margin-top:2px;letter-spacing:0.02em">Модель DrinkX S100</span>' : 'Базовая цена 1 машины (CAPEX)', `${key}-basePrice`,       '₽')}
       ${inputRow('Количество машин в парке',       `${key}-parkSize`,        'шт')}
       ${secHead('Ингредиенты и сырьё')}
       ${inputRow(`Стоимость ${coffeeNoun} (за 1 ${isDrx ? 'л' : 'кг'})`, `${key}-coffeePrice`,     '₽')}
@@ -240,54 +314,51 @@ function colCard(key, isDrx) {
       ${secHead('Расходы (OPEX)')}
       ${inputRow('OPEX на 1 точку в месяц',           `${key}-opex`,            '₽')}
 
-      <div class="mt-8 border-t-2 border-slate-200 pt-6">
-        <h3 class="text-xl font-bold text-slate-800 mb-4">🧮 Детализация и финансы</h3>
+      <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--nx-border)">
+        <div class="nx-label" style="color:var(--nx-muted);text-transform:uppercase;margin-bottom:10px;letter-spacing:0.08em;font-size:11px">ДЕТАЛИЗАЦИЯ И ФИНАНСЫ</div>
         ${resultRow('Итоговый CAPEX парка', `${key}-capex`, false, `${key}-capex-sub`)}
-        <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 my-4">
-          <p class="text-sm font-semibold text-slate-700 mb-3">Себестоимость и маржа</p>
+        <div style="background:var(--nx-bg);border:1px solid var(--nx-border-soft);padding:12px 14px;margin-top:10px">
+          <p class="nx-label" style="color:var(--nx-muted);text-transform:uppercase;margin-bottom:6px;font-size:10px">СЕБЕСТОИМОСТЬ И МАРЖА</p>
           ${resultRow(`С/с Американо (${isDrx ? 'концентрат' : 'зерно'})`,   `${key}-costAmt`)}
           ${resultRow(`С/с Капучино (${isDrx ? 'концентрат' : 'зерно'})`,    `${key}-costCap`)}
-          <div class="pt-3 mt-3 border-t border-slate-200">
+          <div style="padding-top:8px;margin-top:8px;border-top:1px solid var(--nx-border-soft)">
             ${resultRow('Средняя с/с (взвешенная)', `${key}-avgCost`,   false, `${key}-avgCost-sub`)}
             ${resultRow('Средняя цена продажи',     `${key}-avgPrice`)}
             ${resultRow('Средняя маржа с 1 чашки', `${key}-avgMargin`, true)}
           </div>
         </div>
-        <div class="bg-emerald-50 p-4 rounded-xl border border-emerald-100 mb-3">
+        <div style="margin-top:8px;padding:12px 14px;border:1px solid #10B981;background:rgba(16,185,129,0.06)">
           <div class="flex justify-between items-center">
-            <div>
-              <span class="text-sm font-bold text-emerald-800 block">Прибыль парка в месяц</span>
-              <span class="text-xs text-emerald-600">До вычета налогов</span>
-            </div>
-            <span id="${key}-profit" class="text-xl font-black text-emerald-600">—</span>
+            <span class="nx-label" style="color:#047857;text-transform:uppercase;font-size:11px">ПРИБЫЛЬ ПАРКА / МЕС</span>
+            <span id="${key}-profit" style="font-size:18px;font-weight:400;letter-spacing:-0.02em;color:#047857">—</span>
           </div>
         </div>
-        <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-100 mb-3">
-          <div class="flex justify-between items-center mb-2">
-            <span class="text-sm font-bold text-indigo-900">Срок окупаемости</span>
-            <span id="${key}-paybackMo" class="text-lg font-black text-indigo-700">—</span>
+        <div style="margin-top:8px;padding:12px 14px;border:1px solid ${accentCol};background:${isDrx ? 'rgba(249,115,22,0.06)' : 'rgba(15,23,42,0.04)'}">
+          <div class="flex justify-between items-center">
+            <span class="nx-label" style="color:${accentCol};text-transform:uppercase;font-size:11px">СРОК ОКУПАЕМОСТИ</span>
+            <span id="${key}-paybackMo" style="font-size:16px;font-weight:400;letter-spacing:-0.02em;color:${accentCol}">—</span>
           </div>
-          <div class="flex justify-between items-center pt-2 border-t border-indigo-200/50">
-            <span class="text-xs font-medium text-indigo-600">📅 Абсолютная дата:</span>
-            <span id="${key}-paybackDate" class="text-sm font-semibold text-indigo-800">—</span>
+          <div class="flex justify-between items-center" style="padding-top:6px;margin-top:6px;border-top:1px solid rgba(148,163,184,0.3)">
+            <span style="font-size:10px;color:var(--nx-muted);font-weight:400">Абсолютная дата</span>
+            <span id="${key}-paybackDate" style="font-size:12px;font-weight:500;color:var(--nx-ink)">—</span>
           </div>
         </div>
 
         <!-- Накопительные показатели -->
-        <div class="p-4 rounded-xl border ${accumBg} mt-3">
-          <p class="text-sm font-bold ${accumTitle} mb-3">📊 Накопительные показатели</p>
-          <div class="space-y-2">
+        <div style="margin-top:8px;padding:12px 14px;border:1px solid var(--nx-border-soft);background:var(--nx-bg)">
+          <p class="nx-label" style="color:var(--nx-muted);text-transform:uppercase;margin-bottom:8px;letter-spacing:0.08em;font-size:10px">НАКОПИТЕЛЬНЫЕ ПОКАЗАТЕЛИ</p>
+          <div style="display:flex;flex-direction:column;gap:8px">
             <div class="flex justify-between items-center">
-              <span class="text-xs ${accumSub}">Прибыль за 1 год</span>
-              <span id="${key}-profit1yr" class="text-sm font-bold ${accumTitle}">—</span>
+              <span style="font-size:12px;color:var(--nx-muted);font-weight:300">Прибыль за 1 год</span>
+              <span id="${key}-profit1yr" style="font-size:14px;font-weight:500;color:var(--nx-ink)">—</span>
             </div>
             <div class="flex justify-between items-center">
-              <span class="text-xs ${accumSub}">Прибыль за 2 года</span>
-              <span id="${key}-profit2yr" class="text-sm font-bold ${accumTitle}">—</span>
+              <span style="font-size:12px;color:var(--nx-muted);font-weight:300">Прибыль за 2 года</span>
+              <span id="${key}-profit2yr" style="font-size:14px;font-weight:500;color:var(--nx-ink)">—</span>
             </div>
-            <div class="flex justify-between items-center pt-2 border-t ${accumDiv}">
-              <span class="text-xs ${accumSub}">Затраты за год (COGS + OPEX)</span>
-              <span id="${key}-yearexp" class="text-sm font-semibold ${accumSub}">—</span>
+            <div class="flex justify-between items-center" style="padding-top:8px;border-top:1px solid rgba(148,163,184,0.4)">
+              <span style="font-size:12px;color:var(--nx-muted);font-weight:300">Затраты за год (COGS + OPEX)</span>
+              <span id="${key}-yearexp" style="font-size:13px;font-weight:400;color:var(--nx-muted)">—</span>
             </div>
           </div>
         </div>
@@ -298,37 +369,37 @@ function colCard(key, isDrx) {
 
 function dashCard(id, title, sub, icon) {
   return `
-  <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-start gap-4 hover:shadow-md transition-shadow">
-    <div id="${id}-icon" class="p-3 rounded-full shrink-0 text-slate-600 bg-slate-100">
-      <span class="text-xl leading-none">${icon}</span>
+  <div class="nx-card flex flex-col" style="padding:14px 16px;gap:6px;min-height:92px">
+    <div class="flex items-center justify-between" style="gap:8px">
+      <span class="nx-label" style="color:var(--nx-muted);text-transform:uppercase;font-size:10px;letter-spacing:0.08em;line-height:1.2">${title}</span>
+      <span id="${id}-icon" class="flex items-center justify-center shrink-0" style="width:22px;height:22px;border:1px solid var(--nx-border-soft)">
+        <span style="font-size:11px;line-height:1;color:var(--nx-muted)">${icon}</span>
+      </span>
     </div>
-    <div class="min-w-0">
-      <p class="text-sm text-slate-500 font-medium mb-1">${title}</p>
-      <p id="${id}-val" class="text-xl font-bold tracking-tight leading-tight text-slate-800 break-words">—</p>
-      <p class="text-xs text-slate-400 mt-1">${sub}</p>
-    </div>
+    <p id="${id}-val" class="break-words" style="font-size:22px;font-weight:300;letter-spacing:-0.03em;line-height:1.1;color:var(--nx-ink);margin-top:auto">—</p>
+    <p style="font-size:10px;color:var(--nx-muted);font-weight:300;line-height:1.3">${sub}</p>
   </div>`;
 }
 
 function advCard(id, label, tooltipTitle, tooltipBody) {
   return `
-  <div class="bg-white/5 border border-white/10 rounded-2xl p-5 flex flex-col gap-3">
+  <div class="flex flex-col gap-4" style="background:rgba(255,255,255,0.04);border:1px solid rgba(148,163,184,0.2);padding:24px;border-radius:0">
     <div class="tip-wrap self-start">
-      <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">${label}</span>
-      <span class="text-slate-500 text-xs">ⓘ</span>
+      <span class="nx-label" style="color:#94A3B8;text-transform:uppercase">${label}</span>
+      <span style="color:var(--nx-accent);font-size:11px">ⓘ</span>
       <div class="tip-box">
-        <p class="text-amber-300 font-bold text-xs mb-2">${tooltipTitle}</p>
-        <p class="text-slate-300 text-xs leading-relaxed">${tooltipBody}</p>
+        <p class="nx-label" style="color:var(--nx-accent);margin-bottom:8px;text-transform:uppercase">${tooltipTitle}</p>
+        <p style="color:#E2E8F0;font-size:12px;line-height:1.6;font-weight:300">${tooltipBody}</p>
       </div>
     </div>
-    <div class="flex gap-6 items-end flex-wrap">
+    <div class="flex gap-8 items-baseline flex-wrap">
       <div>
-        <p class="text-xs text-slate-500 mb-1">Обычная кофемашина</p>
-        <p id="${id}-std" class="text-lg font-bold text-slate-300">—</p>
+        <p class="nx-label" style="color:#64748B;margin-bottom:6px;text-transform:uppercase">КОФЕМАШИНА</p>
+        <p id="${id}-std" style="font-size:18px;font-weight:400;color:#CBD5E1;letter-spacing:-0.02em">—</p>
       </div>
       <div>
-        <p class="text-xs text-indigo-400 mb-1">DrinkX</p>
-        <p id="${id}-drx" class="text-2xl font-black text-indigo-300">—</p>
+        <p class="nx-label" style="color:var(--nx-accent);margin-bottom:6px;text-transform:uppercase">DRINKX</p>
+        <p id="${id}-drx" style="font-size:28px;font-weight:300;color:#FFFFFF;letter-spacing:-0.03em">—</p>
       </div>
     </div>
   </div>`;
@@ -339,82 +410,98 @@ function advCard(id, label, tooltipTitle, tooltipBody) {
 ═══════════════════════════════════════════════════════════ */
 document.getElementById('app').innerHTML = `
 
-  <!-- Header -->
-  <div class="text-center">
-    <div class="inline-flex items-center gap-2 bg-indigo-100 text-indigo-700 px-4 py-1.5 rounded-full text-sm font-semibold mb-4">
-      ↗ Ритейл-калькулятор
-    </div>
-    <h1 class="text-3xl md:text-5xl font-extrabold text-slate-900 tracking-tight mb-4">
-      Анализ окупаемости и Cash Flow
-    </h1>
-    <p class="text-slate-500 max-w-2xl mx-auto text-lg">
-      Финансовое моделирование парка классических кофемашин в сравнении с экосистемой DrinkX для ритейл сетей.
-    </p>
-  </div>
-
-  <!-- Hero Banner -->
-  <div class="relative overflow-hidden rounded-3xl p-6 md:p-8" style="background:linear-gradient(135deg,#312e81 0%,#1e1b4b 55%,#0f172a 100%)">
-    <div class="absolute inset-0 pointer-events-none select-none" style="background:radial-gradient(ellipse at 80% 50%,rgba(129,140,248,0.15) 0%,transparent 60%)"></div>
-    <div class="relative z-10 flex flex-col md:flex-row md:items-center gap-6 md:gap-10">
-      <div class="flex-1">
-        <p class="text-indigo-300 text-xs font-semibold uppercase tracking-widest mb-2">3-летний горизонт · при текущих параметрах</p>
-        <h2 class="text-xl md:text-2xl font-extrabold text-white leading-snug">
-          За 3 года DrinkX принесёт дополнительно
-        </h2>
-        <p id="hero-net3yr" class="text-4xl md:text-5xl font-black text-amber-400 mt-3 leading-none">—</p>
-        <p id="hero-net3yr-sub" class="text-slate-400 text-xs mt-2"></p>
+  <!-- Header + Hero Banner — editorial dashboard -->
+  <div class="nx-lattice relative overflow-hidden" style="background:var(--nx-ink);border-radius:31px;color:#FFFFFF">
+    <div class="relative z-10" style="padding:20px 32px 0">
+      <!-- Top bar -->
+      <div class="flex items-center justify-between flex-wrap gap-3" style="padding-bottom:14px;border-bottom:1px solid rgba(148,163,184,0.15)">
+        <div class="flex items-center gap-3">
+          <span style="display:inline-block;width:20px;height:1px;background:var(--nx-accent)"></span>
+          <span class="nx-label" style="color:var(--nx-accent);text-transform:uppercase;letter-spacing:0.12em">РИТЕЙЛ-КАЛЬКУЛЯТОР · DRINKX</span>
+        </div>
+        <span class="nx-label" style="color:#94A3B8;text-transform:uppercase;letter-spacing:0.08em">CASH FLOW · OPEX · ROI</span>
       </div>
-      <div class="shrink-0 bg-white/10 border border-white/20 rounded-2xl px-6 py-5 text-center min-w-[190px]">
-        <p class="text-indigo-300 text-xs font-semibold uppercase tracking-wider mb-2">Стоимость промедления</p>
-        <p id="hero-delay" class="text-2xl font-black text-rose-400 leading-none">—</p>
-        <p class="text-slate-400 text-xs mt-2 leading-relaxed">теряется каждый месяц<br>без перехода на DrinkX</p>
+
+      <!-- Title strip -->
+      <div class="flex items-baseline justify-between flex-wrap gap-4" style="padding:18px 0 10px">
+        <h1 style="font-size:clamp(20px,2vw,28px);font-weight:300;letter-spacing:-0.02em;color:#FFFFFF;line-height:1.2">Анализ окупаемости и&nbsp;Cash&nbsp;Flow</h1>
+        <span style="font-size:11px;color:#64748B;font-weight:300">Парк кофемашин vs.&nbsp;DrinkX · локальный расчёт</span>
+      </div>
+
+      <!-- Hero number -->
+      <div class="flex items-end justify-between flex-wrap gap-8" style="padding:24px 0 28px;border-bottom:1px solid rgba(148,163,184,0.15)">
+        <div style="flex:1;min-width:280px">
+          <div class="flex items-center gap-3" style="margin-bottom:10px">
+            <span style="display:inline-block;width:16px;height:1px;background:#34D399"></span>
+            <span class="nx-label" style="color:#34D399;text-transform:uppercase;letter-spacing:0.12em">ЭКОНОМИЯ ЗА 3&nbsp;ГОДА</span>
+          </div>
+          <p id="hero-net3yr" style="font-size:clamp(56px,9vw,128px);font-weight:200;letter-spacing:-0.055em;color:#34D399;line-height:0.95;font-variant-numeric:tabular-nums">—</p>
+          <p id="hero-net3yr-sub" style="font-size:11px;color:#64748B;font-weight:300;margin-top:10px;letter-spacing:0.02em"></p>
+        </div>
+        <div class="text-right" style="min-width:160px">
+          <p class="nx-label" style="color:#94A3B8;text-transform:uppercase;margin-bottom:8px;letter-spacing:0.1em">СТОИМОСТЬ ПРОМЕДЛЕНИЯ</p>
+          <p id="hero-delay" style="font-size:clamp(24px,2.8vw,36px);font-weight:300;letter-spacing:-0.03em;color:#FCA5A5;line-height:1;font-variant-numeric:tabular-nums">—</p>
+          <p style="font-size:10px;color:#64748B;font-weight:300;margin-top:6px;letter-spacing:0.05em;text-transform:uppercase">теряется каждый&nbsp;месяц</p>
+        </div>
       </div>
     </div>
-  </div>
 
-  <!-- Dashboard -->
-  <div>
-    <h2 class="text-xl font-bold text-slate-800 mb-4">◔ Сводный дашборд (преимущества DrinkX)</h2>
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      ${dashCard('d-profit',  'Доп. прибыль в месяц',    'Разница в чистой прибыли парка',    '↗')}
-      ${dashCard('d-margin',  'Разница маржи (с чашки)', 'Экономия на себестоимости',         '₽')}
-      ${dashCard('d-payback', 'Скорость окупаемости',    'Разница в возврате инвестиций',      '⏱')}
-      ${dashCard('d-opex',    'Экономия OPEX / год',     'Снижение операционных расходов',     '⚙️')}
+    <!-- KPI strip: 4 live metrics, full-bleed bottom -->
+    <div class="grid grid-cols-2 md:grid-cols-4 relative z-10" style="border-top:0">
+      <div style="padding:18px 32px;border-right:1px solid rgba(148,163,184,0.15)">
+        <p class="nx-label" style="color:#64748B;text-transform:uppercase;letter-spacing:0.08em;font-size:10px;margin-bottom:6px">ДОП. ПРИБЫЛЬ / МЕС</p>
+        <p id="kpi-profit" style="font-size:clamp(18px,1.8vw,24px);font-weight:300;letter-spacing:-0.03em;color:#FFFFFF;line-height:1;font-variant-numeric:tabular-nums">—</p>
+      </div>
+      <div style="padding:18px 32px;border-right:1px solid rgba(148,163,184,0.15)">
+        <p class="nx-label" style="color:#64748B;text-transform:uppercase;letter-spacing:0.08em;font-size:10px;margin-bottom:6px">+ МАРЖА / ЧАШКА</p>
+        <p id="kpi-margin" style="font-size:clamp(18px,1.8vw,24px);font-weight:300;letter-spacing:-0.03em;color:#FFFFFF;line-height:1;font-variant-numeric:tabular-nums">—</p>
+      </div>
+      <div style="padding:18px 32px;border-right:1px solid rgba(148,163,184,0.15)">
+        <p class="nx-label" style="color:#64748B;text-transform:uppercase;letter-spacing:0.08em;font-size:10px;margin-bottom:6px">ОКУПАЕМОСТЬ DRINKX</p>
+        <p id="kpi-payback" style="font-size:clamp(18px,1.8vw,24px);font-weight:300;letter-spacing:-0.03em;color:#FFFFFF;line-height:1;font-variant-numeric:tabular-nums">—</p>
+      </div>
+      <div style="padding:18px 32px">
+        <p class="nx-label" style="color:#64748B;text-transform:uppercase;letter-spacing:0.08em;font-size:10px;margin-bottom:6px">OPEX / ГОД</p>
+        <p id="kpi-opex" style="font-size:clamp(18px,1.8vw,24px);font-weight:300;letter-spacing:-0.03em;color:#FFFFFF;line-height:1;font-variant-numeric:tabular-nums">—</p>
+      </div>
     </div>
   </div>
 
   <!-- Calculators -->
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
     ${colCard('std', false)}
     ${colCard('drx', true)}
   </div>
 
   <!-- Chart -->
-  <div class="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200">
-    <h2 class="text-2xl font-bold text-slate-800 flex items-center gap-2 mb-1">↗ Накопительная прибыль (Cash Flow)</h2>
-    <p class="text-slate-500 text-sm mb-6">Выход в «плюс» с учётом CAPEX на горизонте 4 года.</p>
-    <div style="position:relative;height:400px">
+  <div class="nx-card" style="padding:20px 24px">
+    <div class="flex items-baseline justify-between" style="margin-bottom:10px">
+      <h2 style="font-size:14px;font-weight:500;letter-spacing:0.08em;color:var(--nx-muted);text-transform:uppercase">Накопительная прибыль · Cash Flow</h2>
+      <span class="nx-label" style="color:var(--nx-accent);text-transform:uppercase">4 ГОДА</span>
+    </div>
+    <div style="position:relative;height:320px">
       <canvas id="cf-chart"></canvas>
     </div>
-    <div class="mt-4 flex items-start gap-2 text-xs text-slate-400 bg-slate-50 p-3 rounded-lg">
-      ℹ <p><strong>Формула:</strong> Накопительная прибыль = (Ежемесячная прибыль × Месяцы) − CAPEX. Пересечение нулевой оси = полная окупаемость.</p>
+    <div style="margin-top:12px;padding:10px 14px;background:var(--nx-bg);border:1px solid var(--nx-border-soft);display:flex;align-items:flex-start;gap:10px">
+      <span style="color:var(--nx-accent);font-weight:500;font-size:10px;letter-spacing:0.08em">ℹ ФОРМУЛА</span>
+      <p style="font-size:11px;color:var(--nx-muted);line-height:1.5;font-weight:300;flex:1">Накопительная прибыль = (Ежемесячная прибыль × Месяцы) − CAPEX. Пересечение нулевой оси = полная окупаемость.</p>
     </div>
   </div>
 
   <!-- Advanced Section -->
-  <div class="rounded-3xl border border-slate-700 overflow-hidden" style="background:linear-gradient(135deg,#1e293b,#0f172a)">
-    <button onclick="toggleAdv()" class="w-full flex items-center justify-between px-6 md:px-8 py-5 text-left">
-      <div class="flex items-center gap-4">
-        <span class="text-2xl">🔬</span>
+  <div class="nx-lattice overflow-hidden" style="background:var(--nx-ink);border-radius:31px">
+    <button onclick="toggleAdv()" class="w-full flex items-center justify-between text-left" style="padding:14px 24px">
+      <div class="flex items-center gap-5">
+        <span class="nx-label" style="color:var(--nx-accent);letter-spacing:0.1em">ADVANCED</span>
         <div>
-          <span class="text-white font-bold text-lg">Advanced — Углублённый анализ</span>
-          <span class="block text-slate-400 text-xs mt-0.5">NPV · IRR · Прибыль на машину · Наведи на ⓘ для объяснения</span>
+          <span style="color:#FFFFFF;font-size:14px;font-weight:400;display:block">Углублённый анализ</span>
+          <span style="color:#94A3B8;font-size:11px;font-weight:300;display:block;margin-top:2px">NPV · IRR · Прибыль на машину</span>
         </div>
       </div>
-      <span id="adv-chevron" class="text-slate-400 text-xl transition-transform duration-300 ml-4 shrink-0">▼</span>
+      <span id="adv-chevron" style="color:var(--nx-accent);font-size:12px;transition:transform 0.3s ease;margin-left:16px;flex-shrink:0">▼</span>
     </button>
     <div id="adv-panel" class="adv-panel">
-      <div class="px-6 md:px-8 pb-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3" style="padding:0 24px 24px">
         ${advCard('adv-npv', 'NPV (36 мес.)',
           'Чистая приведённая стоимость',
           'Сколько денег в сегодняшних ценах принесёт проект за 3 года, с учётом ставки дисконтирования 12%/год. Формула: NPV = −CAPEX + Прибыль × (1−(1+r)^−36) / r, где r = (1,12)^(1/12)−1 ≈ 0,949%/мес. Положительный NPV означает прибыльность выше барьерной ставки.'
@@ -432,54 +519,50 @@ document.getElementById('app').innerHTML = `
   </div>
 
   <!-- Analysis Section -->
-  <div class="relative overflow-hidden rounded-3xl shadow-lg border border-indigo-800" style="background:linear-gradient(135deg,#1e1b4b,#0f172a)">
-    <div class="absolute top-0 right-0 p-8 text-9xl opacity-10 select-none pointer-events-none">📊</div>
-    <div class="relative z-10 p-6 md:p-8 text-white">
-      <h2 class="text-2xl md:text-3xl font-bold flex items-center gap-3 mb-2">
-        🧮 Умный анализ
-      </h2>
-      <p class="text-indigo-300 text-sm mb-6">Выводы и рекомендации строятся на основе ваших цифр — без внешних сервисов</p>
+  <div class="nx-card-hero nx-lattice" style="padding:20px 24px;background:var(--nx-ink);color:#FFFFFF;border-color:var(--nx-ink)">
+    <div class="relative z-10">
+      <div class="flex items-baseline justify-between" style="margin-bottom:14px">
+        <h2 style="font-size:16px;font-weight:500;letter-spacing:0.02em;color:#FFFFFF;text-transform:uppercase">Умный анализ</h2>
+        <span class="nx-label" style="color:var(--nx-accent);text-transform:uppercase">LOCAL · БЕЗ ВНЕШНИХ СЕРВИСОВ</span>
+      </div>
 
       <!-- Tabs -->
-      <div class="flex gap-6 mb-6 border-b border-indigo-800/60">
+      <div class="flex gap-6" style="border-bottom:1px solid rgba(148,163,184,0.2);margin-bottom:14px">
         <button id="tab-analytics" onclick="switchTab('analytics')"
-          class="font-semibold pb-3 border-b-2 border-amber-400 text-amber-400 text-sm flex items-center gap-2 transition-colors">
-          🧮 Финансовый аудит
+          style="padding:8px 0;border:none;border-bottom:2px solid var(--nx-accent);background:transparent;color:var(--nx-accent);font-size:11px;font-weight:500;letter-spacing:0.05em;cursor:pointer;transition:all 150ms ease">
+          ФИНАНСОВЫЙ АУДИТ
         </button>
         <button id="tab-marketing" onclick="switchTab('marketing')"
-          class="font-semibold pb-3 border-b-2 border-transparent text-indigo-300 hover:text-indigo-100 text-sm flex items-center gap-2 transition-colors">
-          📣 Маркетинговые идеи
+          style="padding:8px 0;border:none;border-bottom:2px solid transparent;background:transparent;color:#94A3B8;font-size:11px;font-weight:500;letter-spacing:0.05em;cursor:pointer;transition:all 150ms ease">
+          МАРКЕТИНГОВЫЕ ИДЕИ
         </button>
       </div>
 
       <div id="panel-analytics">
-        <p class="text-indigo-200 mb-5 max-w-3xl text-sm leading-relaxed">
-          Вердикт о выгодности вариантов, анализ ключевого риска и 2 конкретные рекомендации — на основе ваших текущих параметров.
+        <p class="max-w-3xl" style="color:#CBD5E1;font-size:12px;line-height:1.6;font-weight:300;margin-bottom:14px">
+          Вердикт о&nbsp;выгодности вариантов, анализ ключевого риска и&nbsp;2&nbsp;конкретные рекомендации&nbsp;— на&nbsp;основе ваших текущих параметров.
         </p>
-        <button onclick="genAnalytics()"
-          class="bg-indigo-500 hover:bg-indigo-400 text-white font-bold py-3 px-8 rounded-xl shadow-lg transition-all flex items-center gap-3 active:scale-95">
-          🧮 Сформировать финансовый аудит
+        <button onclick="genAnalytics()" style="background:var(--nx-accent);color:#FFFFFF;padding:8px 18px;font-size:11px;letter-spacing:0.05em;text-transform:uppercase;font-weight:500;border-radius:9999px;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:background 150ms ease">
+          Сформировать аудит →
         </button>
-        <div id="ai-analytics-out" class="mt-4"></div>
+        <div id="ai-analytics-out"></div>
       </div>
 
       <div id="panel-marketing" class="hidden">
-        <p class="text-indigo-200 mb-5 max-w-3xl text-sm leading-relaxed">
-          3 маркетинговые идеи, подобранные под ваш трафик, долю молочных напитков и размер парка.
+        <p class="max-w-3xl" style="color:#CBD5E1;font-size:12px;line-height:1.6;font-weight:300;margin-bottom:14px">
+          3&nbsp;маркетинговые идеи, подобранные под ваш трафик, долю молочных напитков и&nbsp;размер парка.
         </p>
-        <button onclick="genMarketing()"
-          class="font-bold py-3 px-8 rounded-xl shadow-lg transition-all flex items-center gap-3 active:scale-95"
-          style="background:#f59e0b;color:#1c1917">
-          📣 Сгенерировать маркетинговые идеи
+        <button onclick="genMarketing()" style="background:var(--nx-accent);color:#FFFFFF;padding:8px 18px;font-size:11px;letter-spacing:0.05em;text-transform:uppercase;font-weight:500;border-radius:9999px;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:background 150ms ease">
+          Сгенерировать идеи →
         </button>
-        <div id="ai-marketing-out" class="mt-4"></div>
+        <div id="ai-marketing-out"></div>
       </div>
     </div>
   </div>
 
   <!-- Footer -->
-  <div class="text-center text-xs text-slate-400 pb-4">
-    DrinkX ROI Calculator · Расчёты выполняются локально в браузере · Данные не передаются на сторонние серверы
+  <div class="text-center" style="padding:12px 0 0;color:var(--nx-muted);font-size:10px;font-weight:300;letter-spacing:0.08em;text-transform:uppercase">
+    DrinkX ROI Calculator · Расчёты локально в&nbsp;браузере
   </div>
 `;
 
@@ -521,9 +604,9 @@ function updateColResults(key, m, d) {
   setText(`${key}-profit2yr`,    fCur(m.profit2Years));
   setText(`${key}-yearexp`,      fCur(m.yearlyExpenses));
 
-  // Colour profit based on sign
+  // Colour profit based on sign (semantic kept — muted palette)
   const pe = document.getElementById(`${key}-profit`);
-  if (pe) pe.className = `text-xl font-black ${m.profitPark >= 0 ? 'text-emerald-600' : 'text-rose-600'}`;
+  if (pe) pe.style.color = m.profitPark >= 0 ? '#047857' : '#B91C1C';
 
   // Discount badge
   const badge = document.getElementById(`${key}-disc-badge`);
@@ -539,14 +622,20 @@ function updateDashCard(id, value, isPos, isNeutral) {
   if (!ve || !ie) return;
   ve.textContent = value;
   if (isNeutral) {
-    ve.className = 'text-xl font-bold tracking-tight leading-tight text-slate-800 break-words';
-    ie.className = 'p-3 rounded-full shrink-0 text-slate-600 bg-slate-100';
+    ve.style.color = 'var(--nx-ink)';
+    ie.style.borderColor = 'var(--nx-border-soft)';
+    ie.style.color = 'var(--nx-muted)';
+    ie.style.background = 'transparent';
   } else if (isPos) {
-    ve.className = 'text-xl font-bold tracking-tight leading-tight text-emerald-600 break-words';
-    ie.className = 'p-3 rounded-full shrink-0 text-emerald-600 bg-emerald-100';
+    ve.style.color = '#047857';
+    ie.style.borderColor = '#10B981';
+    ie.style.color = '#047857';
+    ie.style.background = 'rgba(16,185,129,0.08)';
   } else {
-    ve.className = 'text-xl font-bold tracking-tight leading-tight text-rose-600 break-words';
-    ie.className = 'p-3 rounded-full shrink-0 text-rose-600 bg-rose-100';
+    ve.style.color = '#B91C1C';
+    ie.style.borderColor = '#EF4444';
+    ie.style.color = '#B91C1C';
+    ie.style.background = 'rgba(239,68,68,0.08)';
   }
 }
 
@@ -566,16 +655,17 @@ function initChart() {
         {
           label: 'Обычная кофемашина',
           data: new Array(49).fill(0),
-          borderColor: '#475569',
-          borderWidth: 3,
+          borderColor: '#94A3B8',
+          borderWidth: 1.5,
+          borderDash: [4, 4],
           pointRadius: 0,
           tension: 0.1,
         },
         {
           label: 'DrinkX',
           data: new Array(49).fill(0),
-          borderColor: '#4f46e5',
-          borderWidth: 4,
+          borderColor: '#F97316',
+          borderWidth: 2.5,
           pointRadius: 0,
           tension: 0.1,
         },
@@ -588,11 +678,21 @@ function initChart() {
       plugins: {
         legend: {
           position: 'top',
-          labels: { usePointStyle: true, color: '#475569', font: { family: 'Inter', size: 13 } },
+          align: 'end',
+          labels: { usePointStyle: true, color: '#64748B', font: { family: 'system-ui', size: 12, weight: '400' }, padding: 16, boxWidth: 10 },
         },
         tooltip: {
+          backgroundColor: '#0F172A',
+          titleColor: '#F97316',
+          bodyColor: '#FFFFFF',
+          borderColor: '#334155',
+          borderWidth: 1,
+          cornerRadius: 0,
+          padding: 12,
+          titleFont: { family: 'system-ui', size: 11, weight: '500' },
+          bodyFont: { family: 'system-ui', size: 13, weight: '300' },
           callbacks: {
-            title: items => `Месяц ${items[0].label}`,
+            title: items => `МЕСЯЦ ${items[0].label}`,
             label: ctx => ` ${ctx.dataset.label}: ${fCur(ctx.parsed.y)}`,
           },
         },
@@ -600,9 +700,10 @@ function initChart() {
       scales: {
         x: {
           grid: { display: false },
+          border: { color: '#CBD5E1' },
           ticks: {
-            color: '#64748b',
-            font: { family: 'Inter', size: 12 },
+            color: '#94A3B8',
+            font: { family: 'system-ui', size: 11, weight: '400' },
             maxTicksLimit: 9,
             callback: function(val) {
               return `${this.getLabelForValue(val)} мес`;
@@ -610,10 +711,11 @@ function initChart() {
           },
         },
         y: {
-          grid: { color: '#e2e8f0' },
+          grid: { color: 'rgba(148,163,184,0.15)' },
+          border: { display: false },
           ticks: {
-            color: '#64748b',
-            font: { family: 'Inter', size: 12 },
+            color: '#94A3B8',
+            font: { family: 'system-ui', size: 11, weight: '400' },
             callback: v => `${(v / 1_000_000).toFixed(1)}M`,
           },
         },
@@ -674,17 +776,38 @@ function updateAll() {
   const hSub   = document.getElementById('hero-net3yr-sub');
   if (hEl) {
     hEl.textContent = (net3yr >= 0 ? '+' : '') + fCur(net3yr);
-    hEl.style.color = net3yr >= 0 ? '#fbbf24' : '#f87171';
+    hEl.style.color = net3yr >= 0 ? '#34D399' : '#F87171';
   }
   if (hSub) {
     hSub.textContent = net3yr >= 0
-      ? `(с учётом разницы CAPEX ${fCur(dm.capexTotal - sm.capexTotal)})`
+      ? `С учётом разницы CAPEX ${fCur(dm.capexTotal - sm.capexTotal)}`
       : `DrinkX менее выгоден на 3-летнем горизонте при текущих параметрах`;
   }
   const delayEl = document.getElementById('hero-delay');
   if (delayEl) {
     delayEl.textContent = fCur(Math.abs(profitDiff)) + '/мес.';
-    delayEl.style.color = profitDiff > 0 ? '#f87171' : '#6b7280';
+    delayEl.style.color = profitDiff > 0 ? '#FCA5A5' : '#64748B';
+  }
+
+  // Hero KPI strip
+  const kpiProfitEl = document.getElementById('kpi-profit');
+  if (kpiProfitEl) {
+    kpiProfitEl.textContent = (profitDiff >= 0 ? '+' : '') + fCur(profitDiff);
+    kpiProfitEl.style.color = profitDiff >= 0 ? '#34D399' : '#F87171';
+  }
+  const kpiMarginEl = document.getElementById('kpi-margin');
+  if (kpiMarginEl) {
+    kpiMarginEl.textContent = (marginDiff >= 0 ? '+' : '') + fCost(marginDiff);
+    kpiMarginEl.style.color = marginDiff >= 0 ? '#FFFFFF' : '#F87171';
+  }
+  const kpiPaybackEl = document.getElementById('kpi-payback');
+  if (kpiPaybackEl) {
+    kpiPaybackEl.textContent = isFinite(dm.paybackMo) ? `${dm.paybackMo.toFixed(1)} мес.` : '—';
+  }
+  const kpiOpexEl = document.getElementById('kpi-opex');
+  if (kpiOpexEl) {
+    kpiOpexEl.textContent = opexSavYr === 0 ? '0 ₽' : (opexSavYr > 0 ? '−' : '+') + fCur(Math.abs(opexSavYr));
+    kpiOpexEl.style.color = opexSavYr > 0 ? '#34D399' : '#FFFFFF';
   }
 
   // ── Advanced Section ───────────────────────────────────
@@ -737,10 +860,8 @@ function setupInputListeners() {
 window.switchTab = function(tab) {
   ['analytics','marketing'].forEach(t => {
     const active = t === tab;
-    document.getElementById(`tab-${t}`).className =
-      `font-semibold pb-3 border-b-2 text-sm flex items-center gap-2 transition-colors ${
-        active ? 'border-amber-400 text-amber-400' : 'border-transparent text-indigo-300 hover:text-indigo-100'
-      }`;
+    const btn = document.getElementById(`tab-${t}`);
+    btn.style.cssText = `padding:8px 0;border:none;border-bottom:2px solid ${active ? '#F97316' : 'transparent'};background:transparent;color:${active ? '#F97316' : '#94A3B8'};font-size:11px;font-weight:500;letter-spacing:0.05em;cursor:pointer;transition:all 150ms ease`;
     document.getElementById(`panel-${t}`).classList.toggle('hidden', !active);
   });
 };
@@ -882,12 +1003,14 @@ function generateMarketingText(dm, drx) {
 
 function showResult(elId, text, regenFn) {
   document.getElementById(elId).innerHTML = `
-    <div class="p-6 md:p-8 rounded-2xl border border-white/10 mt-4" style="background:rgba(255,255,255,.05)">
-      <p class="text-slate-100 text-sm leading-7 whitespace-pre-wrap">${text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>
-      <div class="mt-8 pt-5 border-t border-white/10">
+    <div style="margin-top:24px;padding:28px 32px;background:rgba(255,255,255,0.04);border:1px solid rgba(148,163,184,0.25);border-radius:0">
+      <p style="color:#E2E8F0;font-size:13px;line-height:1.8;white-space:pre-wrap;font-weight:300">${text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>
+      <div style="margin-top:28px;padding-top:20px;border-top:1px solid rgba(148,163,184,0.2)">
         <button onclick="${regenFn}()"
-          class="bg-white/10 hover:bg-white/20 text-white font-medium py-2.5 px-5 rounded-lg transition-colors text-sm border border-white/10">
-          🔄 Пересчитать с новыми данными
+          style="background:transparent;color:#FFFFFF;border:1px solid rgba(255,255,255,0.3);padding:10px 20px;font-size:12px;letter-spacing:0.04em;text-transform:uppercase;font-weight:500;cursor:pointer;transition:all 150ms ease"
+          onmouseover="this.style.background='var(--nx-accent)';this.style.borderColor='var(--nx-accent)'"
+          onmouseout="this.style.background='transparent';this.style.borderColor='rgba(255,255,255,0.3)'">
+          ↻ Пересчитать
         </button>
       </div>
     </div>`;
