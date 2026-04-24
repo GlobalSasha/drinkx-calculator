@@ -94,7 +94,7 @@ const state = {
   drx: {
     name: 'DrinkX',
     basePrice: 1200000, parkSize: 50,
-    coffeePrice: 1600 / 3, coffeeBlackDose: 20, coffeeMilkDose: 17,
+    coffeePrice: 1600 / 3, coffeeBlackDose: 30, coffeeMilkDose: 17,
     milkPrice: 80,      milkDose: 180,
     priceAmericano: 150, priceCappuccino: 200,
     milkShare: 70,      cupsPerDay: 50,     opex: 3500,
@@ -538,7 +538,7 @@ function updateColResults(key, m, d) {
   const badge = document.getElementById(`${key}-disc-badge`);
   if (badge) {
     badge.textContent = `Скидка ${m.disc}%`;
-    badge.classList.toggle('hidden', m.disc === 0);
+    badge.classList.toggle('hidden', m.disc === 0 || key === 'std');
   }
 }
 

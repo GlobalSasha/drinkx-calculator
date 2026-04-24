@@ -53,6 +53,24 @@
     .nx-card { background: var(--nx-surface); border: 1px solid var(--nx-border-soft); border-radius: 0; }
     .nx-card-hero { background: var(--nx-surface); border: 1px solid var(--nx-border-soft); border-radius: 31px; }
 
+    /* Collapse button + panel */
+    .nx-collapse-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px; background: transparent; color: var(--nx-muted);
+      border: 1px solid var(--nx-border-soft); border-radius: 0; cursor: pointer;
+      font-family: inherit; font-size: 10px; font-weight: 500;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      transition: all 150ms ease;
+    }
+    .nx-collapse-btn:hover { background: var(--nx-ink); color: #FFFFFF; border-color: var(--nx-ink); }
+    .nx-collapse-btn .nx-chev { transition: transform 300ms ease; font-size: 9px; }
+    .nx-collapse-btn.open .nx-chev { transform: rotate(180deg); }
+    .nx-collapse-panel {
+      max-height: 0; overflow: hidden;
+      transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .nx-collapse-panel.open { max-height: 1400px; }
+
     /* Pill button (primary CTA) */
     .nx-btn-primary {
       background: var(--nx-ink); color: #FFFFFF;
@@ -174,7 +192,7 @@ const state = {
   drx: {
     name: 'DrinkX',
     basePrice: 1200000, parkSize: 50,
-    coffeePrice: 1600 / 3, coffeeBlackDose: 20, coffeeMilkDose: 17,
+    coffeePrice: 1600 / 3, coffeeBlackDose: 30, coffeeMilkDose: 17,
     milkPrice: 80,      milkDose: 180,
     priceAmericano: 150, priceCappuccino: 200,
     milkShare: 70,      cupsPerDay: 50,     opex: 3500,
@@ -293,88 +311,118 @@ function resultRow(label, id, highlight, subId) {
 
 function colCard(key, isDrx) {
   const d = state[key];
-  const hdrBg   = isDrx ? 'var(--nx-accent)' : 'var(--nx-ink)';
-  const coffeeNoun  = isDrx ? 'концентрата' : 'зерна';
-  const coffeeCap   = isDrx ? 'Концентрат'  : 'Зерно';
-  const accentCol   = isDrx ? 'var(--nx-accent)' : 'var(--nx-ink)';
+  const hdrBg      = isDrx ? 'var(--nx-accent)' : 'var(--nx-ink)';
+  const coffeeNoun = isDrx ? 'концентрата' : 'зерна';
+  const coffeeCap  = isDrx ? 'Концентрат'  : 'Зерно';
+  const accentCol  = isDrx ? 'var(--nx-accent)' : 'var(--nx-ink)';
+  const pCAPEX = `${key}-capex-panel`;
+  const pCOST  = `${key}-cost-panel`;
   return `
   <div class="nx-card overflow-hidden" style="${isDrx ? 'border-color:var(--nx-ink);border-width:2px' : ''}">
     <div class="flex items-center gap-3" style="padding:12px 20px;background:${hdrBg};color:#FFFFFF">
       <h2 style="font-size:15px;font-weight:500;letter-spacing:0.02em;color:#FFFFFF;text-transform:uppercase">${d.name}</h2>
       <span id="${key}-disc-badge" class="ml-auto nx-label hidden" style="background:rgba(255,255,255,0.18);color:#FFFFFF;padding:2px 10px;border-radius:9999px;font-size:10px"></span>
     </div>
-    <div style="padding:14px 20px 20px">
-      ${secHead('Оборудование и парк')}
-      ${inputRow(isDrx ? 'Базовая цена 1 машины (CAPEX)<span style="display:block;font-size:10px;color:var(--nx-muted);font-weight:400;margin-top:2px;letter-spacing:0.02em">Модель DrinkX S100</span>' : 'Базовая цена 1 машины (CAPEX)', `${key}-basePrice`,       '₽')}
-      ${inputRow('Количество машин в парке',       `${key}-parkSize`,        'шт')}
-      ${secHead('Ингредиенты и сырьё')}
-      ${inputRow(`Стоимость ${coffeeNoun} (за 1 ${isDrx ? 'л' : 'кг'})`, `${key}-coffeePrice`,     '₽')}
-      ${inputRow(`${coffeeCap} — чёрный кофе`,         `${key}-coffeeBlackDose`, isDrx ? 'мл' : 'г')}
-      ${inputRow(`${coffeeCap} — молочный напиток`,    `${key}-coffeeMilkDose`,  isDrx ? 'мл' : 'г')}
-      ${inputRow('Молоко (за 1 л)',                    `${key}-milkPrice`,       '₽')}
-      ${inputRow('Расход молока на порцию',            `${key}-milkDose`,        'мл')}
-      ${secHead('Цены и продажи')}
-      ${inputRow('Цена Американо',                     `${key}-priceAmericano`,  '₽')}
-      ${inputRow('Цена Капучино (300 мл)',              `${key}-priceCappuccino`, '₽')}
-      ${inputRow('Доля молочных напитков',             `${key}-milkShare`,       '%', true)}
-      ${inputRow('Чашек в день (на 1 машину)',         `${key}-cupsPerDay`,      'шт')}
-      ${secHead('Расходы (OPEX)')}
-      ${inputRow('OPEX на 1 точку в месяц',           `${key}-opex`,            '₽')}
-      ${secHead('Потери')}
-      ${inputRow('Фрод (воровство от продаж)',        `${key}-fraud`,           '%', true)}
 
-      <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--nx-border)">
-        <div class="nx-label" style="color:var(--nx-muted);text-transform:uppercase;margin-bottom:10px;letter-spacing:0.08em;font-size:11px">ДЕТАЛИЗАЦИЯ И ФИНАНСЫ</div>
-        ${resultRow('Итоговый CAPEX парка', `${key}-capex`, false, `${key}-capex-sub`)}
-        <div style="background:var(--nx-bg);border:1px solid var(--nx-border-soft);padding:12px 14px;margin-top:10px">
-          <p class="nx-label" style="color:var(--nx-muted);text-transform:uppercase;margin-bottom:6px;font-size:10px">СЕБЕСТОИМОСТЬ И МАРЖА</p>
-          ${resultRow(`С/с Американо (${isDrx ? 'концентрат' : 'зерно'})`,   `${key}-costAmt`)}
-          ${resultRow(`С/с Капучино (${isDrx ? 'концентрат' : 'зерно'})`,    `${key}-costCap`)}
-          <div style="padding-top:8px;margin-top:8px;border-top:1px solid var(--nx-border-soft)">
-            ${resultRow('Средняя с/с (взвешенная)', `${key}-avgCost`,   false, `${key}-avgCost-sub`)}
-            ${resultRow('Средняя цена продажи',     `${key}-avgPrice`)}
-            ${resultRow('Средняя маржа с 1 чашки', `${key}-avgMargin`, true)}
-          </div>
+    <!-- ── BLOCK 1 · Затраты CAPEX ────────────────────── -->
+    <div style="padding:16px 20px;border-bottom:1px solid var(--nx-border-soft)">
+      <div class="flex items-center justify-between" style="margin-bottom:10px">
+        <span class="nx-label" style="color:var(--nx-muted);text-transform:uppercase;letter-spacing:0.08em;font-size:11px">ЗАТРАТЫ · CAPEX</span>
+        <button type="button" class="nx-collapse-btn" data-nx-btn="${pCAPEX}" onclick="nxToggle('${pCAPEX}')">Настроить <span class="nx-chev">▾</span></button>
+      </div>
+      ${resultRow('Итоговый CAPEX парка', `${key}-capex`, false, `${key}-capex-sub`)}
+      <div id="${pCAPEX}" class="nx-collapse-panel">
+        <div style="padding-top:10px;padding-left:10px;border-left:2px solid ${accentCol}">
+          ${inputRow(isDrx ? 'Базовая цена 1 машины (CAPEX)<span style="display:block;font-size:10px;color:var(--nx-muted);font-weight:400;margin-top:2px;letter-spacing:0.02em">Модель DrinkX S100</span>' : 'Базовая цена 1 машины (CAPEX)', `${key}-basePrice`, '₽')}
+          ${inputRow('Количество машин в парке', `${key}-parkSize`, 'шт')}
         </div>
-        <div style="margin-top:8px;padding:12px 14px;border:1px solid #10B981;background:rgba(16,185,129,0.06)">
-          <div class="flex justify-between items-center">
-            <span class="nx-label" style="color:#047857;text-transform:uppercase;font-size:11px">ПРИБЫЛЬ ПАРКА / МЕС</span>
-            <span id="${key}-profit" style="font-size:18px;font-weight:400;letter-spacing:-0.02em;color:#047857">—</span>
-          </div>
-        </div>
-        <div style="margin-top:8px;padding:12px 14px;border:1px solid ${accentCol};background:${isDrx ? 'rgba(249,115,22,0.06)' : 'rgba(15,23,42,0.04)'}">
-          <div class="flex justify-between items-center">
-            <span class="nx-label" style="color:${accentCol};text-transform:uppercase;font-size:11px">СРОК ОКУПАЕМОСТИ</span>
-            <span id="${key}-paybackMo" style="font-size:16px;font-weight:400;letter-spacing:-0.02em;color:${accentCol}">—</span>
-          </div>
-          <div class="flex justify-between items-center" style="padding-top:6px;margin-top:6px;border-top:1px solid rgba(148,163,184,0.3)">
-            <span style="font-size:10px;color:var(--nx-muted);font-weight:400">Абсолютная дата</span>
-            <span id="${key}-paybackDate" style="font-size:12px;font-weight:500;color:var(--nx-ink)">—</span>
-          </div>
-        </div>
+      </div>
+    </div>
 
-        <!-- Накопительные показатели -->
-        <div style="margin-top:8px;padding:12px 14px;border:1px solid var(--nx-border-soft);background:var(--nx-bg)">
-          <p class="nx-label" style="color:var(--nx-muted);text-transform:uppercase;margin-bottom:8px;letter-spacing:0.08em;font-size:10px">НАКОПИТЕЛЬНЫЕ ПОКАЗАТЕЛИ</p>
-          <div style="display:flex;flex-direction:column;gap:8px">
-            <div class="flex justify-between items-center">
-              <span style="font-size:12px;color:var(--nx-muted);font-weight:300">Прибыль за 1 год</span>
-              <span id="${key}-profit1yr" style="font-size:14px;font-weight:500;color:var(--nx-ink)">—</span>
-            </div>
-            <div class="flex justify-between items-center">
-              <span style="font-size:12px;color:var(--nx-muted);font-weight:300">Прибыль за 2 года</span>
-              <span id="${key}-profit2yr" style="font-size:14px;font-weight:500;color:var(--nx-ink)">—</span>
-            </div>
-            <div class="flex justify-between items-center" style="padding-top:8px;border-top:1px solid rgba(148,163,184,0.4)">
-              <span style="font-size:12px;color:var(--nx-muted);font-weight:300">Затраты за год (COGS + OPEX)</span>
-              <span id="${key}-yearexp" style="font-size:13px;font-weight:400;color:var(--nx-muted)">—</span>
-            </div>
+    <!-- ── BLOCK 2 · Себестоимость и маржа ──────────────── -->
+    <div style="padding:16px 20px;border-bottom:1px solid var(--nx-border-soft)">
+      <div class="flex items-center justify-between" style="margin-bottom:10px">
+        <span class="nx-label" style="color:var(--nx-muted);text-transform:uppercase;letter-spacing:0.08em;font-size:11px">СЕБЕСТОИМОСТЬ И МАРЖА</span>
+        <button type="button" class="nx-collapse-btn" data-nx-btn="${pCOST}" onclick="nxToggle('${pCOST}')">Настроить <span class="nx-chev">▾</span></button>
+      </div>
+      ${resultRow(`С/с Американо (${isDrx ? 'концентрат' : 'зерно'})`, `${key}-costAmt`)}
+      ${resultRow(`С/с Капучино (${isDrx ? 'концентрат' : 'зерно'})`,  `${key}-costCap`)}
+      <div style="padding-top:8px;margin-top:8px;border-top:1px solid var(--nx-border-soft)">
+        ${resultRow('Средняя с/с (взвешенная)', `${key}-avgCost`, false, `${key}-avgCost-sub`)}
+        ${resultRow('Средняя цена продажи', `${key}-avgPrice`)}
+        ${resultRow('Средняя маржа с 1 чашки', `${key}-avgMargin`, true)}
+      </div>
+      <div id="${pCOST}" class="nx-collapse-panel">
+        <div style="padding-top:14px;padding-left:10px;border-left:2px solid ${accentCol}">
+          ${secHead('Ингредиенты и сырьё')}
+          ${inputRow(`Стоимость ${coffeeNoun} (за 1 ${isDrx ? 'л' : 'кг'})`, `${key}-coffeePrice`, '₽')}
+          ${inputRow(`${coffeeCap} — чёрный кофе`,      `${key}-coffeeBlackDose`, isDrx ? 'мл' : 'г')}
+          ${inputRow(`${coffeeCap} — молочный напиток`, `${key}-coffeeMilkDose`,  isDrx ? 'мл' : 'г')}
+          ${inputRow('Молоко (за 1 л)',                 `${key}-milkPrice`, '₽')}
+          ${inputRow('Расход молока на порцию',         `${key}-milkDose`,  'мл')}
+          ${secHead('Цены и продажи')}
+          ${inputRow('Цена Американо',                  `${key}-priceAmericano`,  '₽')}
+          ${inputRow('Цена Капучино (300 мл)',          `${key}-priceCappuccino`, '₽')}
+          ${inputRow('Доля молочных напитков',          `${key}-milkShare`, '%', true)}
+          ${inputRow('Чашек в день (на 1 машину)',      `${key}-cupsPerDay`, 'шт')}
+          ${secHead('Операционные')}
+          ${inputRow('OPEX на 1 точку в месяц',         `${key}-opex`, '₽')}
+          ${inputRow('Фрод (воровство от продаж)',      `${key}-fraud`, '%', true)}
+        </div>
+      </div>
+    </div>
+
+    <!-- ── BLOCK 3 · Прибыль ─────────────────────────────── -->
+    <div style="padding:16px 20px;border-bottom:1px solid var(--nx-border-soft)">
+      <span class="nx-label" style="color:var(--nx-muted);text-transform:uppercase;letter-spacing:0.08em;font-size:11px;display:block;margin-bottom:10px">ПРИБЫЛЬ</span>
+      <div style="padding:12px 14px;border:1px solid #10B981;background:rgba(16,185,129,0.06)">
+        <div class="flex justify-between items-center">
+          <span class="nx-label" style="color:#047857;text-transform:uppercase;font-size:11px">ПРИБЫЛЬ ПАРКА / МЕС</span>
+          <span id="${key}-profit" style="font-size:20px;font-weight:400;letter-spacing:-0.02em;color:#047857">—</span>
+        </div>
+      </div>
+      <div style="margin-top:8px;padding:12px 14px;border:1px solid var(--nx-border-soft);background:var(--nx-bg)">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div class="flex justify-between items-center">
+            <span style="font-size:12px;color:var(--nx-muted);font-weight:300">Прибыль за 1 год</span>
+            <span id="${key}-profit1yr" style="font-size:14px;font-weight:500;color:var(--nx-ink)">—</span>
           </div>
+          <div class="flex justify-between items-center">
+            <span style="font-size:12px;color:var(--nx-muted);font-weight:300">Прибыль за 2 года</span>
+            <span id="${key}-profit2yr" style="font-size:14px;font-weight:500;color:var(--nx-ink)">—</span>
+          </div>
+          <div class="flex justify-between items-center" style="padding-top:8px;border-top:1px solid rgba(148,163,184,0.4)">
+            <span style="font-size:12px;color:var(--nx-muted);font-weight:300">Затраты за год (COGS + OPEX + фрод)</span>
+            <span id="${key}-yearexp" style="font-size:13px;font-weight:400;color:var(--nx-muted)">—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── BLOCK 4 · Срок окупаемости ───────────────────── -->
+    <div style="padding:16px 20px">
+      <span class="nx-label" style="color:var(--nx-muted);text-transform:uppercase;letter-spacing:0.08em;font-size:11px;display:block;margin-bottom:10px">СРОК ОКУПАЕМОСТИ</span>
+      <div style="padding:12px 14px;border:1px solid ${accentCol};background:${isDrx ? 'rgba(249,115,22,0.06)' : 'rgba(15,23,42,0.04)'}">
+        <div class="flex justify-between items-center">
+          <span class="nx-label" style="color:${accentCol};text-transform:uppercase;font-size:11px">ВРЕМЯ</span>
+          <span id="${key}-paybackMo" style="font-size:20px;font-weight:400;letter-spacing:-0.02em;color:${accentCol}">—</span>
+        </div>
+        <div class="flex justify-between items-center" style="padding-top:6px;margin-top:6px;border-top:1px solid rgba(148,163,184,0.3)">
+          <span style="font-size:10px;color:var(--nx-muted);font-weight:400">Абсолютная дата</span>
+          <span id="${key}-paybackDate" style="font-size:12px;font-weight:500;color:var(--nx-ink)">—</span>
         </div>
       </div>
     </div>
   </div>`;
 }
+
+/* Collapse toggle — shared across Nexus color cards */
+window.nxToggle = function(id) {
+  const btn = document.querySelector(`[data-nx-btn="${id}"]`);
+  const panel = document.getElementById(id);
+  if (btn) btn.classList.toggle('open');
+  if (panel) panel.classList.toggle('open');
+};
 
 function dashCard(id, title, sub, icon) {
   return `
@@ -442,7 +490,7 @@ document.getElementById('app').innerHTML = `
         <div style="flex:1;min-width:280px">
           <div class="flex items-center gap-3" style="margin-bottom:10px">
             <span style="display:inline-block;width:16px;height:1px;background:#34D399"></span>
-            <span class="nx-label" style="color:#34D399;text-transform:uppercase;letter-spacing:0.12em">ЭКОНОМИЯ ЗА 3&nbsp;ГОДА</span>
+            <span class="nx-label" style="color:#34D399;text-transform:uppercase;letter-spacing:0.12em">ПРИБЫЛЬ ЗА 3&nbsp;ГОДА</span>
           </div>
           <p id="hero-net3yr" style="font-size:clamp(56px,9vw,128px);font-weight:200;letter-spacing:-0.055em;color:#34D399;line-height:0.95;font-variant-numeric:tabular-nums">—</p>
           <p id="hero-net3yr-sub" style="font-size:11px;color:#64748B;font-weight:300;margin-top:10px;letter-spacing:0.02em"></p>
@@ -455,8 +503,8 @@ document.getElementById('app').innerHTML = `
       </div>
     </div>
 
-    <!-- KPI strip: 4 live metrics, full-bleed bottom -->
-    <div class="grid grid-cols-2 md:grid-cols-4 relative z-10" style="border-top:0">
+    <!-- KPI strip: 3 live metrics, full-bleed bottom -->
+    <div class="grid grid-cols-1 md:grid-cols-3 relative z-10" style="border-top:0">
       <div style="padding:18px 32px;border-right:1px solid rgba(148,163,184,0.15)">
         <p class="nx-label" style="color:#64748B;text-transform:uppercase;letter-spacing:0.08em;font-size:10px;margin-bottom:6px">ДОП. ПРИБЫЛЬ / МЕС</p>
         <p id="kpi-profit" style="font-size:clamp(18px,1.8vw,24px);font-weight:300;letter-spacing:-0.03em;color:#FFFFFF;line-height:1;font-variant-numeric:tabular-nums">—</p>
@@ -465,13 +513,9 @@ document.getElementById('app').innerHTML = `
         <p class="nx-label" style="color:#64748B;text-transform:uppercase;letter-spacing:0.08em;font-size:10px;margin-bottom:6px">+ МАРЖА / ЧАШКА</p>
         <p id="kpi-margin" style="font-size:clamp(18px,1.8vw,24px);font-weight:300;letter-spacing:-0.03em;color:#FFFFFF;line-height:1;font-variant-numeric:tabular-nums">—</p>
       </div>
-      <div style="padding:18px 32px;border-right:1px solid rgba(148,163,184,0.15)">
+      <div style="padding:18px 32px">
         <p class="nx-label" style="color:#64748B;text-transform:uppercase;letter-spacing:0.08em;font-size:10px;margin-bottom:6px">ОКУПАЕМОСТЬ DRINKX</p>
         <p id="kpi-payback" style="font-size:clamp(18px,1.8vw,24px);font-weight:300;letter-spacing:-0.03em;color:#FFFFFF;line-height:1;font-variant-numeric:tabular-nums">—</p>
-      </div>
-      <div style="padding:18px 32px">
-        <p class="nx-label" style="color:#64748B;text-transform:uppercase;letter-spacing:0.08em;font-size:10px;margin-bottom:6px">OPEX / ГОД</p>
-        <p id="kpi-opex" style="font-size:clamp(18px,1.8vw,24px);font-weight:300;letter-spacing:-0.03em;color:#FFFFFF;line-height:1;font-variant-numeric:tabular-nums">—</p>
       </div>
     </div>
   </div>
@@ -621,7 +665,7 @@ function updateColResults(key, m, d) {
   const badge = document.getElementById(`${key}-disc-badge`);
   if (badge) {
     badge.textContent = `Скидка ${m.disc}%`;
-    badge.classList.toggle('hidden', m.disc === 0);
+    badge.classList.toggle('hidden', m.disc === 0 || key === 'std');
   }
 }
 
@@ -753,32 +797,12 @@ function updateAll() {
   updateColResults('std', sm, state.std);
   updateColResults('drx', dm, state.drx);
 
-  // ── Dashboard ──────────────────────────────────────────
+  // ── Dashboard metrics (used by KPI strip in hero) ──────
   const profitDiff  = dm.profitPark - sm.profitPark;
   const marginDiff  = dm.avgMargin  - sm.avgMargin;
+  const marginPct   = sm.avgMargin > 0 ? (marginDiff / sm.avgMargin) * 100 : 0;
   const paybackDiff = sm.paybackMo  - dm.paybackMo;
-  const opexSavYr   = (state.std.opex - state.drx.opex) * state.drx.parkSize * 12;
-
-  updateDashCard('d-profit',
-    (profitDiff > 0 ? '+' : '') + fCur(profitDiff),
-    profitDiff >= 0, false);
-
-  updateDashCard('d-margin',
-    (marginDiff > 0 ? '+' : '') + fCost(marginDiff),
-    marginDiff >= 0, false);
-
-  const bothLoss = !isFinite(sm.paybackMo) && !isFinite(dm.paybackMo);
-  updateDashCard('d-payback',
-    bothLoss ? 'Оба убыточны' :
-    paybackDiff === 0 ? 'Одинаково' :
-    paybackDiff > 0 ? `Быстрее на ${paybackDiff.toFixed(1)} мес.` :
-    `Медленнее на ${Math.abs(paybackDiff).toFixed(1)} мес.`,
-    paybackDiff > 0, paybackDiff === 0 || bothLoss);
-
-  updateDashCard('d-opex',
-    opexSavYr === 0 ? 'Одинаково' :
-    (opexSavYr > 0 ? 'Экономия ' : 'Перерасход ') + fCur(Math.abs(opexSavYr)),
-    opexSavYr > 0, opexSavYr === 0);
+  const bothLoss    = !isFinite(sm.paybackMo) && !isFinite(dm.paybackMo);
 
   // ── Hero Banner ────────────────────────────────────────
   const net3yr = profitDiff * 36 - (dm.capexTotal - sm.capexTotal);
@@ -799,7 +823,7 @@ function updateAll() {
     delayEl.style.color = profitDiff > 0 ? '#FCA5A5' : '#64748B';
   }
 
-  // Hero KPI strip
+  // Hero KPI strip (3 metrics)
   const kpiProfitEl = document.getElementById('kpi-profit');
   if (kpiProfitEl) {
     kpiProfitEl.textContent = (profitDiff >= 0 ? '+' : '') + fCur(profitDiff);
@@ -807,17 +831,13 @@ function updateAll() {
   }
   const kpiMarginEl = document.getElementById('kpi-margin');
   if (kpiMarginEl) {
-    kpiMarginEl.textContent = (marginDiff >= 0 ? '+' : '') + fCost(marginDiff);
+    const pctStr = marginPct === 0 ? '' : ` (${marginPct > 0 ? '+' : ''}${marginPct.toFixed(1)}%)`;
+    kpiMarginEl.textContent = (marginDiff >= 0 ? '+' : '') + fCost(marginDiff) + pctStr;
     kpiMarginEl.style.color = marginDiff >= 0 ? '#FFFFFF' : '#F87171';
   }
   const kpiPaybackEl = document.getElementById('kpi-payback');
   if (kpiPaybackEl) {
     kpiPaybackEl.textContent = isFinite(dm.paybackMo) ? `${dm.paybackMo.toFixed(1)} мес.` : '—';
-  }
-  const kpiOpexEl = document.getElementById('kpi-opex');
-  if (kpiOpexEl) {
-    kpiOpexEl.textContent = opexSavYr === 0 ? '0 ₽' : (opexSavYr > 0 ? '−' : '+') + fCur(Math.abs(opexSavYr));
-    kpiOpexEl.style.color = opexSavYr > 0 ? '#34D399' : '#FFFFFF';
   }
 
   // ── Advanced Section ───────────────────────────────────

@@ -83,6 +83,24 @@
       color: var(--ar-white);
     }
 
+    /* Collapse button + panel */
+    .ar-collapse-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 5px 12px; background: transparent; color: var(--ar-deep);
+      border: 1px solid rgba(124,45,18,0.25); border-radius: 9999px; cursor: pointer;
+      font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 500;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      transition: all 150ms ease;
+    }
+    .ar-collapse-btn:hover { background: var(--ar-surface); color: var(--ar-white); border-color: var(--ar-surface); }
+    .ar-collapse-btn .ar-chev { transition: transform 300ms ease; font-size: 9px; }
+    .ar-collapse-btn.open .ar-chev { transform: rotate(180deg); }
+    .ar-collapse-panel {
+      max-height: 0; overflow: hidden;
+      transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .ar-collapse-panel.open { max-height: 1400px; }
+
     .ar-btn-primary {
       background: var(--ar-surface);
       color: var(--ar-white);
@@ -264,7 +282,7 @@ const state = {
   drx: {
     name: 'DrinkX',
     basePrice: 1200000, parkSize: 50,
-    coffeePrice: 1600 / 3, coffeeBlackDose: 20, coffeeMilkDose: 17,
+    coffeePrice: 1600 / 3, coffeeBlackDose: 30, coffeeMilkDose: 17,
     milkPrice: 80,      milkDose: 180,
     priceAmericano: 150, priceCappuccino: 200,
     milkShare: 70,      cupsPerDay: 50,     opex: 3500,
@@ -383,87 +401,118 @@ function resultRow(label, id, highlight, subId) {
 
 function colCard(key, isDrx) {
   const d = state[key];
-  const hdrBg   = isDrx ? 'var(--ar-surface)' : 'var(--ar-deep)';
-  const coffeeNoun  = isDrx ? 'концентрата' : 'зерна';
-  const coffeeCap   = isDrx ? 'Концентрат'  : 'Зерно';
-  const accentCol   = isDrx ? 'var(--ar-surface)' : 'var(--ar-deep)';
+  const hdrBg      = isDrx ? 'var(--ar-surface)' : 'var(--ar-deep)';
+  const coffeeNoun = isDrx ? 'концентрата' : 'зерна';
+  const coffeeCap  = isDrx ? 'Концентрат'  : 'Зерно';
+  const accentCol  = isDrx ? 'var(--ar-surface)' : 'var(--ar-deep)';
+  const pCAPEX = `${key}-capex-panel`;
+  const pCOST  = `${key}-cost-panel`;
   return `
   <div class="ar-card overflow-hidden">
     <div class="flex items-center gap-3" style="padding:14px 20px;background:${hdrBg};color:var(--ar-white)">
       <h2 style="font-size:15px;font-weight:500;letter-spacing:0.02em;color:var(--ar-white);text-transform:uppercase">${d.name}</h2>
       <span id="${key}-disc-badge" class="ml-auto ar-micro hidden" style="background:rgba(255,255,255,0.2);color:var(--ar-white);padding:3px 10px;border-radius:9999px"></span>
     </div>
-    <div style="padding:16px 24px 24px">
-      ${secHead('Оборудование и парк')}
-      ${inputRow(isDrx ? 'Базовая цена 1 машины (CAPEX)<span style="display:block;font-size:10px;color:var(--ar-deep);opacity:0.75;font-weight:400;margin-top:2px;letter-spacing:0.02em">Модель DrinkX S100</span>' : 'Базовая цена 1 машины (CAPEX)', `${key}-basePrice`,       '₽')}
-      ${inputRow('Количество машин в парке',       `${key}-parkSize`,        'шт')}
-      ${secHead('Ингредиенты и сырьё')}
-      ${inputRow(`Стоимость ${coffeeNoun} (за 1 ${isDrx ? 'л' : 'кг'})`, `${key}-coffeePrice`,     '₽')}
-      ${inputRow(`${coffeeCap} — чёрный кофе`,         `${key}-coffeeBlackDose`, isDrx ? 'мл' : 'г')}
-      ${inputRow(`${coffeeCap} — молочный напиток`,    `${key}-coffeeMilkDose`,  isDrx ? 'мл' : 'г')}
-      ${inputRow('Молоко (за 1 л)',                    `${key}-milkPrice`,       '₽')}
-      ${inputRow('Расход молока на порцию',            `${key}-milkDose`,        'мл')}
-      ${secHead('Цены и продажи')}
-      ${inputRow('Цена Американо',                     `${key}-priceAmericano`,  '₽')}
-      ${inputRow('Цена Капучино (300 мл)',              `${key}-priceCappuccino`, '₽')}
-      ${inputRow('Доля молочных напитков',             `${key}-milkShare`,       '%', true)}
-      ${inputRow('Чашек в день (на 1 машину)',         `${key}-cupsPerDay`,      'шт')}
-      ${secHead('Расходы (OPEX)')}
-      ${inputRow('OPEX на 1 точку в месяц',           `${key}-opex`,            '₽')}
-      ${secHead('Потери')}
-      ${inputRow('Фрод (воровство от продаж)',        `${key}-fraud`,           '%', true)}
 
-      <div style="margin-top:20px;padding-top:14px;border-top:1px solid rgba(124,45,18,0.18)">
-        <div class="ar-micro" style="color:var(--ar-deep);margin-bottom:10px">ДЕТАЛИЗАЦИЯ И ФИНАНСЫ</div>
-        ${resultRow('Итоговый CAPEX парка', `${key}-capex`, false, `${key}-capex-sub`)}
-        <div style="background:rgba(251,146,60,0.1);border:1px solid rgba(124,45,18,0.15);padding:14px;margin-top:12px;border-radius:8px">
-          <p class="ar-micro" style="color:var(--ar-deep);margin-bottom:8px">СЕБЕСТОИМОСТЬ И МАРЖА</p>
-          ${resultRow(`С/с Американо (${isDrx ? 'концентрат' : 'зерно'})`,   `${key}-costAmt`)}
-          ${resultRow(`С/с Капучино (${isDrx ? 'концентрат' : 'зерно'})`,    `${key}-costCap`)}
-          <div style="padding-top:8px;margin-top:8px;border-top:1px solid rgba(124,45,18,0.15)">
-            ${resultRow('Средняя с/с (взвешенная)', `${key}-avgCost`,   false, `${key}-avgCost-sub`)}
-            ${resultRow('Средняя цена продажи',     `${key}-avgPrice`)}
-            ${resultRow('Средняя маржа с 1 чашки', `${key}-avgMargin`, true)}
-          </div>
+    <!-- ── BLOCK 1 · Затраты CAPEX ────────────────────── -->
+    <div style="padding:18px 24px;border-bottom:1px solid rgba(124,45,18,0.12)">
+      <div class="flex items-center justify-between" style="margin-bottom:10px">
+        <span class="ar-micro" style="color:var(--ar-deep)">ЗАТРАТЫ · CAPEX</span>
+        <button type="button" class="ar-collapse-btn" data-ar-btn="${pCAPEX}" onclick="arToggle('${pCAPEX}')">Настроить <span class="ar-chev">▾</span></button>
+      </div>
+      ${resultRow('Итоговый CAPEX парка', `${key}-capex`, false, `${key}-capex-sub`)}
+      <div id="${pCAPEX}" class="ar-collapse-panel">
+        <div style="padding-top:10px;padding-left:12px;border-left:2px solid ${accentCol}">
+          ${inputRow(isDrx ? 'Базовая цена 1 машины (CAPEX)<span style="display:block;font-size:10px;color:var(--ar-deep);opacity:0.75;font-weight:400;margin-top:2px;letter-spacing:0.02em">Модель DrinkX S100</span>' : 'Базовая цена 1 машины (CAPEX)', `${key}-basePrice`, '₽')}
+          ${inputRow('Количество машин в парке', `${key}-parkSize`, 'шт')}
         </div>
-        <div style="margin-top:10px;padding:12px 14px;border:1px solid var(--ar-green);background:rgba(34,197,94,0.08);border-radius:8px">
-          <div class="flex justify-between items-center">
-            <span class="ar-micro" style="color:#166534">ПРИБЫЛЬ ПАРКА / МЕС</span>
-            <span id="${key}-profit" style="font-size:18px;font-weight:400;letter-spacing:-0.02em;color:#166534">—</span>
-          </div>
-        </div>
-        <div style="margin-top:8px;padding:12px 14px;border:1px solid ${accentCol};background:${isDrx ? 'rgba(249,115,22,0.1)' : 'rgba(124,45,18,0.08)'};border-radius:8px">
-          <div class="flex justify-between items-center">
-            <span class="ar-micro" style="color:${accentCol}">СРОК ОКУПАЕМОСТИ</span>
-            <span id="${key}-paybackMo" style="font-size:16px;font-weight:500;letter-spacing:-0.02em;color:${accentCol}">—</span>
-          </div>
-          <div class="flex justify-between items-center" style="padding-top:6px;margin-top:6px;border-top:1px solid rgba(124,45,18,0.15)">
-            <span style="font-size:10px;color:var(--ar-deep);opacity:0.8;font-weight:400">Абсолютная дата</span>
-            <span id="${key}-paybackDate" style="font-size:12px;font-weight:500;color:var(--ar-ink)">—</span>
-          </div>
-        </div>
+      </div>
+    </div>
 
-        <div style="margin-top:8px;padding:14px;border:1px solid rgba(124,45,18,0.15);background:rgba(255,255,255,0.6);border-radius:8px">
-          <p class="ar-micro" style="color:var(--ar-deep);margin-bottom:8px">НАКОПИТЕЛЬНЫЕ ПОКАЗАТЕЛИ</p>
-          <div style="display:flex;flex-direction:column;gap:6px">
-            <div class="flex justify-between items-center">
-              <span style="font-size:12px;color:var(--ar-ink);font-weight:300">Прибыль за 1 год</span>
-              <span id="${key}-profit1yr" style="font-size:13px;font-weight:500;color:var(--ar-ink)">—</span>
-            </div>
-            <div class="flex justify-between items-center">
-              <span style="font-size:12px;color:var(--ar-ink);font-weight:300">Прибыль за 2 года</span>
-              <span id="${key}-profit2yr" style="font-size:13px;font-weight:500;color:var(--ar-ink)">—</span>
-            </div>
-            <div class="flex justify-between items-center" style="padding-top:6px;border-top:1px solid rgba(124,45,18,0.15)">
-              <span style="font-size:11px;color:var(--ar-deep);font-weight:300">Затраты за год</span>
-              <span id="${key}-yearexp" style="font-size:12px;font-weight:400;color:var(--ar-deep)">—</span>
-            </div>
+    <!-- ── BLOCK 2 · Себестоимость и маржа ──────────────── -->
+    <div style="padding:18px 24px;border-bottom:1px solid rgba(124,45,18,0.12)">
+      <div class="flex items-center justify-between" style="margin-bottom:10px">
+        <span class="ar-micro" style="color:var(--ar-deep)">СЕБЕСТОИМОСТЬ И МАРЖА</span>
+        <button type="button" class="ar-collapse-btn" data-ar-btn="${pCOST}" onclick="arToggle('${pCOST}')">Настроить <span class="ar-chev">▾</span></button>
+      </div>
+      ${resultRow(`С/с Американо (${isDrx ? 'концентрат' : 'зерно'})`, `${key}-costAmt`)}
+      ${resultRow(`С/с Капучино (${isDrx ? 'концентрат' : 'зерно'})`,  `${key}-costCap`)}
+      <div style="padding-top:8px;margin-top:8px;border-top:1px solid rgba(124,45,18,0.15)">
+        ${resultRow('Средняя с/с (взвешенная)', `${key}-avgCost`, false, `${key}-avgCost-sub`)}
+        ${resultRow('Средняя цена продажи', `${key}-avgPrice`)}
+        ${resultRow('Средняя маржа с 1 чашки', `${key}-avgMargin`, true)}
+      </div>
+      <div id="${pCOST}" class="ar-collapse-panel">
+        <div style="padding-top:14px;padding-left:12px;border-left:2px solid ${accentCol}">
+          ${secHead('Ингредиенты и сырьё')}
+          ${inputRow(`Стоимость ${coffeeNoun} (за 1 ${isDrx ? 'л' : 'кг'})`, `${key}-coffeePrice`, '₽')}
+          ${inputRow(`${coffeeCap} — чёрный кофе`,      `${key}-coffeeBlackDose`, isDrx ? 'мл' : 'г')}
+          ${inputRow(`${coffeeCap} — молочный напиток`, `${key}-coffeeMilkDose`,  isDrx ? 'мл' : 'г')}
+          ${inputRow('Молоко (за 1 л)',                 `${key}-milkPrice`, '₽')}
+          ${inputRow('Расход молока на порцию',         `${key}-milkDose`,  'мл')}
+          ${secHead('Цены и продажи')}
+          ${inputRow('Цена Американо',                  `${key}-priceAmericano`,  '₽')}
+          ${inputRow('Цена Капучино (300 мл)',          `${key}-priceCappuccino`, '₽')}
+          ${inputRow('Доля молочных напитков',          `${key}-milkShare`, '%', true)}
+          ${inputRow('Чашек в день (на 1 машину)',      `${key}-cupsPerDay`, 'шт')}
+          ${secHead('Операционные')}
+          ${inputRow('OPEX на 1 точку в месяц',         `${key}-opex`, '₽')}
+          ${inputRow('Фрод (воровство от продаж)',      `${key}-fraud`, '%', true)}
+        </div>
+      </div>
+    </div>
+
+    <!-- ── BLOCK 3 · Прибыль ─────────────────────────────── -->
+    <div style="padding:18px 24px;border-bottom:1px solid rgba(124,45,18,0.12)">
+      <span class="ar-micro" style="color:var(--ar-deep);display:block;margin-bottom:10px">ПРИБЫЛЬ</span>
+      <div style="padding:12px 14px;border:1px solid var(--ar-green);background:rgba(34,197,94,0.08);border-radius:8px">
+        <div class="flex justify-between items-center">
+          <span class="ar-micro" style="color:#166534">ПРИБЫЛЬ ПАРКА / МЕС</span>
+          <span id="${key}-profit" style="font-size:20px;font-weight:400;letter-spacing:-0.02em;color:#166534">—</span>
+        </div>
+      </div>
+      <div style="margin-top:8px;padding:14px;border:1px solid rgba(124,45,18,0.15);background:rgba(255,255,255,0.6);border-radius:8px">
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div class="flex justify-between items-center">
+            <span style="font-size:12px;color:var(--ar-ink);font-weight:300">Прибыль за 1 год</span>
+            <span id="${key}-profit1yr" style="font-size:13px;font-weight:500;color:var(--ar-ink)">—</span>
           </div>
+          <div class="flex justify-between items-center">
+            <span style="font-size:12px;color:var(--ar-ink);font-weight:300">Прибыль за 2 года</span>
+            <span id="${key}-profit2yr" style="font-size:13px;font-weight:500;color:var(--ar-ink)">—</span>
+          </div>
+          <div class="flex justify-between items-center" style="padding-top:6px;border-top:1px solid rgba(124,45,18,0.15)">
+            <span style="font-size:11px;color:var(--ar-deep);font-weight:300">Затраты за год (COGS + OPEX + фрод)</span>
+            <span id="${key}-yearexp" style="font-size:12px;font-weight:400;color:var(--ar-deep)">—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── BLOCK 4 · Срок окупаемости ───────────────────── -->
+    <div style="padding:18px 24px">
+      <span class="ar-micro" style="color:var(--ar-deep);display:block;margin-bottom:10px">СРОК ОКУПАЕМОСТИ</span>
+      <div style="padding:12px 14px;border:1px solid ${accentCol};background:${isDrx ? 'rgba(249,115,22,0.1)' : 'rgba(124,45,18,0.08)'};border-radius:8px">
+        <div class="flex justify-between items-center">
+          <span class="ar-micro" style="color:${accentCol}">ВРЕМЯ</span>
+          <span id="${key}-paybackMo" style="font-size:20px;font-weight:500;letter-spacing:-0.02em;color:${accentCol}">—</span>
+        </div>
+        <div class="flex justify-between items-center" style="padding-top:6px;margin-top:6px;border-top:1px solid rgba(124,45,18,0.15)">
+          <span style="font-size:10px;color:var(--ar-deep);opacity:0.8;font-weight:400">Абсолютная дата</span>
+          <span id="${key}-paybackDate" style="font-size:12px;font-weight:500;color:var(--ar-ink)">—</span>
         </div>
       </div>
     </div>
   </div>`;
 }
+
+/* Collapse toggle — shared across Ares color cards */
+window.arToggle = function(id) {
+  const btn = document.querySelector(`[data-ar-btn="${id}"]`);
+  const panel = document.getElementById(id);
+  if (btn) btn.classList.toggle('open');
+  if (panel) panel.classList.toggle('open');
+};
 
 function dashCard(id, title, sub, icon) {
   return `
@@ -531,7 +580,7 @@ document.getElementById('app').innerHTML = `
         <div class="ar-rise ar-rise-3" style="flex:1;min-width:280px">
           <div class="flex items-center gap-3" style="margin-bottom:10px">
             <span class="ar-pulse-line" style="display:inline-block;width:16px;height:1px;background:var(--ar-green)"></span>
-            <span class="ar-micro" style="color:var(--ar-green-soft)">ЭКОНОМИЯ ЗА 3&nbsp;ГОДА</span>
+            <span class="ar-micro" style="color:var(--ar-green-soft)">ПРИБЫЛЬ ЗА 3&nbsp;ГОДА</span>
           </div>
           <p id="hero-net3yr" class="ar-rise ar-rise-4" style="font-size:clamp(56px,9vw,128px);font-weight:200;letter-spacing:-0.055em;color:var(--ar-green-soft);line-height:0.95;font-variant-numeric:tabular-nums">—</p>
           <p id="hero-net3yr-sub" style="font-size:11px;color:rgba(255,255,255,0.55);font-weight:300;margin-top:10px;letter-spacing:0.02em"></p>
@@ -551,11 +600,10 @@ document.getElementById('app').innerHTML = `
       <h2 class="ar-micro" style="color:var(--ar-white)">СВОДНЫЙ ДАШБОРД</h2>
       <span class="ar-micro" style="color:var(--ar-deep);background:var(--ar-white);padding:3px 10px;border-radius:9999px">ПРЕИМУЩЕСТВА DRINKX</span>
     </div>
-    <div class="grid grid-cols-2 lg:grid-cols-4" style="gap:12px">
+    <div class="grid grid-cols-1 md:grid-cols-3" style="gap:12px">
       ${dashCard('d-profit',  'ДОП. ПРИБЫЛЬ / МЕС',     'Разница в чистой прибыли парка',    '↗')}
-      ${dashCard('d-margin',  '+ МАРЖА / ЧАШКА',        'Экономия на себестоимости',         '₽')}
+      ${dashCard('d-margin',  '+ МАРЖА / ЧАШКА',        'Прибавка к прибыли с чашки',        '₽')}
       ${dashCard('d-payback', 'СКОРОСТЬ ОКУПАЕМОСТИ',   'Разница в возврате инвестиций',     '⏱')}
-      ${dashCard('d-opex',    'ЭКОНОМИЯ OPEX / ГОД',    'Снижение операционных расходов',    '⚙')}
     </div>
   </div>
 
@@ -729,7 +777,7 @@ function updateColResults(key, m, d) {
   const badge = document.getElementById(`${key}-disc-badge`);
   if (badge) {
     badge.textContent = `Скидка ${m.disc}%`;
-    badge.classList.toggle('hidden', m.disc === 0);
+    badge.classList.toggle('hidden', m.disc === 0 || key === 'std');
   }
 }
 
@@ -861,15 +909,16 @@ function updateAll() {
   // ── Dashboard ──────────────────────────────────────────
   const profitDiff  = dm.profitPark - sm.profitPark;
   const marginDiff  = dm.avgMargin  - sm.avgMargin;
+  const marginPct   = sm.avgMargin > 0 ? (marginDiff / sm.avgMargin) * 100 : 0;
   const paybackDiff = sm.paybackMo  - dm.paybackMo;
-  const opexSavYr   = (state.std.opex - state.drx.opex) * state.drx.parkSize * 12;
 
   updateDashCard('d-profit',
     (profitDiff > 0 ? '+' : '') + fCur(profitDiff),
     profitDiff >= 0, false);
 
+  const marginPctStr = marginPct === 0 ? '' : ` (${marginPct > 0 ? '+' : ''}${marginPct.toFixed(1)}%)`;
   updateDashCard('d-margin',
-    (marginDiff > 0 ? '+' : '') + fCost(marginDiff),
+    (marginDiff > 0 ? '+' : '') + fCost(marginDiff) + marginPctStr,
     marginDiff >= 0, false);
 
   const bothLoss = !isFinite(sm.paybackMo) && !isFinite(dm.paybackMo);
@@ -879,11 +928,6 @@ function updateAll() {
     paybackDiff > 0 ? `Быстрее на ${paybackDiff.toFixed(1)} мес.` :
     `Медленнее на ${Math.abs(paybackDiff).toFixed(1)} мес.`,
     paybackDiff > 0, paybackDiff === 0 || bothLoss);
-
-  updateDashCard('d-opex',
-    opexSavYr === 0 ? 'Одинаково' :
-    (opexSavYr > 0 ? 'Экономия ' : 'Перерасход ') + fCur(Math.abs(opexSavYr)),
-    opexSavYr > 0, opexSavYr === 0);
 
   // ── Hero Banner ────────────────────────────────────────
   const net3yr = profitDiff * 36 - (dm.capexTotal - sm.capexTotal);
