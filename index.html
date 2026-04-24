@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>DrinkX — Калькулятор для ритейл сетей</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -86,6 +89,7 @@ const state = {
     milkPrice: 80,      milkDose: 200,
     priceAmericano: 150, priceCappuccino: 200,
     milkShare: 70,      cupsPerDay: 40,     opex: 9500,
+    fraud: 25,
   },
   drx: {
     name: 'DrinkX',
@@ -94,6 +98,7 @@ const state = {
     milkPrice: 80,      milkDose: 180,
     priceAmericano: 150, priceCappuccino: 200,
     milkShare: 70,      cupsPerDay: 50,     opex: 3500,
+    fraud: 0,
   },
 };
 
@@ -115,11 +120,13 @@ function calc(d) {
   const avgMargin  = avgPrice - avgCost;
   const mCups      = d.cupsPerDay * 30 * d.parkSize;
   const cogsPark   = mCups * avgCost;
-  const profitPark = mCups * avgMargin - d.opex * d.parkSize;
+  const fraudR     = Math.max(0, Math.min(100, d.fraud || 0)) / 100;
+  const fraudLoss  = mCups * avgPrice * fraudR;
+  const profitPark = mCups * avgMargin - d.opex * d.parkSize - fraudLoss;
   const paybackMo  = profitPark > 0 ? capexTotal / profitPark : Infinity;
 
   // Yearly metrics
-  const yearlyExpenses = (cogsPark + d.opex * d.parkSize) * 12;
+  const yearlyExpenses = (cogsPark + d.opex * d.parkSize + fraudLoss) * 12;
   const profit1Year    = profitPark * 12;
   const profit2Years   = profitPark * 24;
 
@@ -239,6 +246,8 @@ function colCard(key, isDrx) {
       ${inputRow('Чашек в день (на 1 машину)',         `${key}-cupsPerDay`,      'шт')}
       ${secHead('Расходы (OPEX)')}
       ${inputRow('OPEX на 1 точку в месяц',           `${key}-opex`,            '₽')}
+      ${secHead('Потери')}
+      ${inputRow('Фрод (воровство от продаж)',        `${key}-fraud`,           '%', true)}
 
       <div class="mt-8 border-t-2 border-slate-200 pt-6">
         <h3 class="text-xl font-bold text-slate-800 mb-4">🧮 Детализация и финансы</h3>
