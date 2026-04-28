@@ -113,18 +113,37 @@
     }
     .ar-tax-btn.on .ar-tax-dot { background: #FFFFFF; }
 
-    /* Collapse button + panel */
+    /* Collapse button + panel — interactive pulse to invite click */
     .ar-collapse-btn {
       display: inline-flex; align-items: center; gap: 6px;
-      padding: 5px 12px; background: transparent; color: var(--ar-deep);
-      border: 1px solid rgba(124,45,18,0.25); border-radius: 9999px; cursor: pointer;
+      padding: 6px 14px; background: transparent;
+      color: var(--ar-surface);
+      border: 1px solid var(--ar-surface); border-radius: 9999px; cursor: pointer;
       font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 500;
       letter-spacing: 0.08em; text-transform: uppercase;
-      transition: all 150ms ease;
+      transition: all 200ms ease;
+      animation: ar-btn-pulse 2.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      will-change: box-shadow, transform;
     }
-    .ar-collapse-btn:hover { background: var(--ar-surface); color: var(--ar-white); border-color: var(--ar-surface); }
+    @keyframes ar-btn-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(234, 88, 12, 0.0); }
+      50%      { box-shadow: 0 0 0 5px rgba(234, 88, 12, 0.22); }
+    }
+    .ar-collapse-btn:hover {
+      background: var(--ar-surface); color: var(--ar-white);
+      transform: translateY(-1px);
+      animation: none;
+      box-shadow: 0 6px 16px rgba(234,88,12,0.4);
+    }
+    .ar-collapse-btn.open {
+      background: var(--ar-deep); color: var(--ar-white); border-color: var(--ar-deep);
+      animation: none; box-shadow: none;
+    }
     .ar-collapse-btn .ar-chev { transition: transform 300ms ease; font-size: 9px; }
     .ar-collapse-btn.open .ar-chev { transform: rotate(180deg); }
+    @media (prefers-reduced-motion: reduce) {
+      .ar-collapse-btn { animation: none; }
+    }
     .ar-collapse-panel {
       max-height: 0; overflow: hidden;
       transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -839,13 +858,13 @@ function updateColResults(key, m, d) {
   setText(`${key}-avgCost-sub`,  `Доля молочных ${d.milkShare}%`);
   setText(`${key}-avgPrice`,     fCost(m.avgPrice));
   setText(`${key}-avgMargin`,    fCost(m.avgMargin));
-  setText(`${key}-profit`,       fCur(m.profitPark));
+  setText(`${key}-profit`,       fLargeRu(m.profitPark));
   setText(`${key}-paybackMo`,    m.paybackMo === Infinity ? '—' : `${m.paybackMo.toFixed(1)} мес.`);
   setText(`${key}-paybackDate`,  m.paybackDate);
   // Накопительные показатели
-  setText(`${key}-profit1yr`,    fCur(m.profit1Year));
-  setText(`${key}-profit2yr`,    fCur(m.profit2Years));
-  setText(`${key}-yearexp`,      fCur(m.yearlyExpenses));
+  setText(`${key}-profit1yr`,    fLargeRu(m.profit1Year));
+  setText(`${key}-profit2yr`,    fLargeRu(m.profit2Years));
+  setText(`${key}-yearexp`,      fLargeRu(m.yearlyExpenses));
 
   // Colour profit based on sign
   const pe = document.getElementById(`${key}-profit`);
@@ -998,7 +1017,7 @@ function updateAll() {
   const paybackDiff = sm.paybackMo  - dm.paybackMo;
 
   updateDashCard('d-profit',
-    (profitDiff > 0 ? '+' : '') + fCur(profitDiff),
+    fLargeRu(profitDiff, true),
     profitDiff >= 0, false);
 
   const marginPctStr = marginPct === 0 ? '' : ` (${marginPct > 0 ? '+' : ''}${marginPct.toFixed(1)}%)`;
@@ -1049,12 +1068,12 @@ function updateAll() {
   const stdPPM = state.std.parkSize > 0 ? sm.profitPark / state.std.parkSize : 0;
   const drxPPM = state.drx.parkSize > 0 ? dm.profitPark / state.drx.parkSize : 0;
 
-  setText('adv-npv-std', fCur(stdNPV));
-  setText('adv-npv-drx', fCur(drxNPV));
+  setText('adv-npv-std', fLargeRu(stdNPV));
+  setText('adv-npv-drx', fLargeRu(drxNPV));
   setText('adv-irr-std', stdIRR != null ? fPct(stdIRR) : 'N/A');
   setText('adv-irr-drx', drxIRR != null ? fPct(drxIRR) : 'N/A');
-  setText('adv-ppm-std', fCur(stdPPM));
-  setText('adv-ppm-drx', fCur(drxPPM));
+  setText('adv-ppm-std', fLargeRu(stdPPM));
+  setText('adv-ppm-drx', fLargeRu(drxPPM));
 
   updateChart(sm, dm);
 }

@@ -84,18 +84,37 @@
     }
     .nx-tax-btn.on .nx-tax-dot { background: #FFFFFF; }
 
-    /* Collapse button + panel */
+    /* Collapse button + panel — interactive pulse to invite click */
     .nx-collapse-btn {
       display: inline-flex; align-items: center; gap: 6px;
-      padding: 4px 10px; background: transparent; color: var(--nx-muted);
-      border: 1px solid var(--nx-border-soft); border-radius: 0; cursor: pointer;
+      padding: 5px 14px; background: transparent;
+      color: var(--nx-accent);
+      border: 1px solid var(--nx-accent); border-radius: 0; cursor: pointer;
       font-family: inherit; font-size: 10px; font-weight: 500;
       letter-spacing: 0.08em; text-transform: uppercase;
-      transition: all 150ms ease;
+      transition: all 200ms ease;
+      animation: nx-btn-pulse 2.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      will-change: box-shadow, transform;
     }
-    .nx-collapse-btn:hover { background: var(--nx-ink); color: #FFFFFF; border-color: var(--nx-ink); }
+    @keyframes nx-btn-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.0); }
+      50%      { box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.18); }
+    }
+    .nx-collapse-btn:hover {
+      background: var(--nx-accent); color: #FFFFFF;
+      transform: translateY(-1px);
+      animation: none;
+      box-shadow: 0 4px 12px rgba(249,115,22,0.35);
+    }
+    .nx-collapse-btn.open {
+      background: var(--nx-ink); color: #FFFFFF; border-color: var(--nx-ink);
+      animation: none; box-shadow: none;
+    }
     .nx-collapse-btn .nx-chev { transition: transform 300ms ease; font-size: 9px; }
     .nx-collapse-btn.open .nx-chev { transform: rotate(180deg); }
+    @media (prefers-reduced-motion: reduce) {
+      .nx-collapse-btn { animation: none; }
+    }
     .nx-collapse-panel {
       max-height: 0; overflow: hidden;
       transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -728,13 +747,13 @@ function updateColResults(key, m, d) {
   setText(`${key}-avgCost-sub`,  `Доля молочных ${d.milkShare}%`);
   setText(`${key}-avgPrice`,     fCost(m.avgPrice));
   setText(`${key}-avgMargin`,    fCost(m.avgMargin));
-  setText(`${key}-profit`,       fCur(m.profitPark));
+  setText(`${key}-profit`,       fLargeRu(m.profitPark));
   setText(`${key}-paybackMo`,    m.paybackMo === Infinity ? '—' : `${m.paybackMo.toFixed(1)} мес.`);
   setText(`${key}-paybackDate`,  m.paybackDate);
   // Накопительные показатели
-  setText(`${key}-profit1yr`,    fCur(m.profit1Year));
-  setText(`${key}-profit2yr`,    fCur(m.profit2Years));
-  setText(`${key}-yearexp`,      fCur(m.yearlyExpenses));
+  setText(`${key}-profit1yr`,    fLargeRu(m.profit1Year));
+  setText(`${key}-profit2yr`,    fLargeRu(m.profit2Years));
+  setText(`${key}-yearexp`,      fLargeRu(m.yearlyExpenses));
 
   // Colour profit based on sign (semantic kept — muted palette)
   const pe = document.getElementById(`${key}-profit`);
@@ -921,7 +940,7 @@ function updateAll() {
   // Hero KPI strip (3 metrics)
   const kpiProfitEl = document.getElementById('kpi-profit');
   if (kpiProfitEl) {
-    kpiProfitEl.textContent = (profitDiff >= 0 ? '+' : '') + fCur(profitDiff);
+    kpiProfitEl.textContent = fLargeRu(profitDiff, true);
     kpiProfitEl.style.color = profitDiff >= 0 ? '#34D399' : '#F87171';
   }
   const kpiMarginEl = document.getElementById('kpi-margin');
@@ -943,12 +962,12 @@ function updateAll() {
   const stdPPM = state.std.parkSize > 0 ? sm.profitPark / state.std.parkSize : 0;
   const drxPPM = state.drx.parkSize > 0 ? dm.profitPark / state.drx.parkSize : 0;
 
-  setText('adv-npv-std', fCur(stdNPV));
-  setText('adv-npv-drx', fCur(drxNPV));
+  setText('adv-npv-std', fLargeRu(stdNPV));
+  setText('adv-npv-drx', fLargeRu(drxNPV));
   setText('adv-irr-std', stdIRR != null ? fPct(stdIRR) : 'N/A');
   setText('adv-irr-drx', drxIRR != null ? fPct(drxIRR) : 'N/A');
-  setText('adv-ppm-std', fCur(stdPPM));
-  setText('adv-ppm-drx', fCur(drxPPM));
+  setText('adv-ppm-std', fLargeRu(stdPPM));
+  setText('adv-ppm-drx', fLargeRu(drxPPM));
 
   updateChart(sm, dm);
 }
