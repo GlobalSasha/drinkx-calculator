@@ -183,6 +183,19 @@
       border-bottom-color: #334155;
     }
 
+    /* Print — render full content, expand all collapse panels, hide controls */
+    @media print {
+      html, body { background: #FFFFFF !important; color: #000 !important; }
+      body::before { display: none !important; }
+      .nx-seg, .nx-tax-btn, .nx-collapse-btn { display: none !important; }
+      .nx-collapse-panel { max-height: none !important; overflow: visible !important; }
+      .nx-card-hero, .nx-lattice { background: #0F172A !important; }
+      .nx-card-hero::before, .nx-lattice::before { display: none !important; }
+      #app { padding: 16px !important; gap: 16px !important; }
+      .adv-panel { max-height: none !important; }
+      canvas { max-width: 100% !important; height: 280px !important; }
+    }
+
     /* Subtle Nexus "line lattice" nod for hero card (per WebGL section of spec, CSS-only) */
     .nx-lattice {
       position: relative; overflow: hidden;
@@ -313,6 +326,22 @@ function calcIRR(profit, capex, months = 36) {
 const fCur  = v => new Intl.NumberFormat('ru-RU', { style:'currency', currency:'RUB', maximumFractionDigits:0 }).format(v);
 const fCost = v => new Intl.NumberFormat('ru-RU', { style:'currency', currency:'RUB', maximumFractionDigits:2 }).format(v);
 const fPct  = v => v == null ? 'N/A' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+
+/* Compact ru format — млн / тыс / ₽ depending on magnitude */
+function fLargeRu(v, signed = false) {
+  if (!isFinite(v)) return '—';
+  const sign = v >= 0 ? (signed ? '+' : '') : '−';
+  const abs = Math.abs(v);
+  if (abs >= 1_000_000) {
+    const mln = abs / 1_000_000;
+    const fixed = mln >= 100 ? mln.toFixed(1) : mln.toFixed(2);
+    return `${sign}${fixed.replace('.', ',')} млн ₽`;
+  }
+  if (abs >= 1_000) {
+    return `${sign}${(abs / 1_000).toFixed(0)} тыс ₽`;
+  }
+  return `${sign}${abs.toFixed(0)} ₽`;
+}
 
 /* ═══════════════════════════════════════════════════════════
    HTML TEMPLATES
@@ -525,6 +554,8 @@ document.getElementById('app').innerHTML = `
           <button type="button" class="nx-tax-btn" onclick="nxToggleTax()">
             <span class="nx-tax-dot"></span> НДС 22% + 20%
           </button>
+          <button type="button" class="nx-tax-btn" onclick="exportCSV()" title="Скачать в Excel (CSV)">↓ EXCEL</button>
+          <button type="button" class="nx-tax-btn" onclick="exportPDF()" title="Печать / сохранить как PDF">↓ PDF</button>
         </div>
       </div>
 
@@ -623,9 +654,8 @@ document.getElementById('app').innerHTML = `
   <!-- Analysis Section -->
   <div class="nx-card-hero nx-lattice" style="padding:20px 24px;background:var(--nx-ink);color:#FFFFFF;border-color:var(--nx-ink)">
     <div class="relative z-10">
-      <div class="flex items-baseline justify-between" style="margin-bottom:14px">
+      <div style="margin-bottom:14px">
         <h2 style="font-size:16px;font-weight:500;letter-spacing:0.02em;color:#FFFFFF;text-transform:uppercase">Умный анализ</h2>
-        <span class="nx-label" style="color:var(--nx-accent);text-transform:uppercase">LOCAL · БЕЗ ВНЕШНИХ СЕРВИСОВ</span>
       </div>
 
       <!-- Tabs -->
@@ -874,7 +904,7 @@ function updateAll() {
     hLabel.textContent = `ПРИБЫЛЬ ЗА ${yrsStr} ${yrsWord}`;
   }
   if (hEl) {
-    hEl.textContent = (net3yr >= 0 ? '+' : '') + fCur(net3yr);
+    hEl.textContent = fLargeRu(net3yr, true);
     hEl.style.color = net3yr >= 0 ? '#34D399' : '#F87171';
   }
   if (hSub) {
@@ -884,7 +914,7 @@ function updateAll() {
   }
   const delayEl = document.getElementById('hero-delay');
   if (delayEl) {
-    delayEl.textContent = fCur(Math.abs(profitDiff)) + '/мес.';
+    delayEl.textContent = fLargeRu(Math.abs(profitDiff)) + '/мес.';
     delayEl.style.color = profitDiff > 0 ? '#FCA5A5' : '#64748B';
   }
 
@@ -1179,6 +1209,91 @@ function initTooltips() {
 ═══════════════════════════════════════════════════════════ */
 window.__periodMo = 36;
 window.__taxesOn  = false;
+
+/* ─── Export: CSV (для Excel) ────────────────────────────── */
+function buildExportRows() {
+  const sm = calc(state.std);
+  const dm = calc(state.drx);
+  const periodMo = window.__periodMo || 36;
+  const stdNPV = calcNPV(sm.profitPark, sm.capexTotal, periodMo);
+  const drxNPV = calcNPV(dm.profitPark, dm.capexTotal, periodMo);
+  const stdIRR = calcIRR(sm.profitPark, sm.capexTotal, periodMo);
+  const drxIRR = calcIRR(dm.profitPark, dm.capexTotal, periodMo);
+  const stdPPM = state.std.parkSize > 0 ? sm.profitPark / state.std.parkSize : 0;
+  const drxPPM = state.drx.parkSize > 0 ? dm.profitPark / state.drx.parkSize : 0;
+  const round  = (v, d=2) => isFinite(v) ? Number(v.toFixed(d)) : '';
+  const rows = [];
+  rows.push(['DrinkX ROI · Калькулятор для ритейл-сетей', '', '']);
+  rows.push([`Дата: ${new Date().toLocaleString('ru-RU')}`, '', '']);
+  rows.push([`Период расчёта: ${periodMo} мес.`, `Налоги (НДС 22% + 20%): ${window.__taxesOn ? 'Вкл' : 'Выкл'}`, '']);
+  rows.push(['', '', '']);
+  rows.push(['Параметр', 'Обычная кофемашина', 'DrinkX S100']);
+  rows.push(['— ВХОДНЫЕ ПАРАМЕТРЫ —', '', '']);
+  rows.push(['Базовая цена 1 машины (CAPEX), ₽',  state.std.basePrice,        state.drx.basePrice]);
+  rows.push(['Количество машин в парке',           state.std.parkSize,         state.drx.parkSize]);
+  rows.push(['Стоимость кофе/концентрата, ₽ за 1 кг (или 1 л для DrinkX)', state.std.coffeePrice, round(state.drx.coffeePrice, 2)]);
+  rows.push(['Чёрный кофе — доза',                 `${state.std.coffeeBlackDose} г`, `${state.drx.coffeeBlackDose} мл`]);
+  rows.push(['Молочный напиток — доза',            `${state.std.coffeeMilkDose} г`,  `${state.drx.coffeeMilkDose} мл`]);
+  rows.push(['Молоко (за 1 л), ₽',                 state.std.milkPrice,        state.drx.milkPrice]);
+  rows.push(['Расход молока на порцию, мл',        state.std.milkDose,         state.drx.milkDose]);
+  rows.push(['Цена Американо, ₽',                  state.std.priceAmericano,   state.drx.priceAmericano]);
+  rows.push(['Цена Капучино (300 мл), ₽',          state.std.priceCappuccino,  state.drx.priceCappuccino]);
+  rows.push(['Доля молочных напитков, %',          state.std.milkShare,        state.drx.milkShare]);
+  rows.push(['Чашек в день (на 1 машину)',         state.std.cupsPerDay,       state.drx.cupsPerDay]);
+  rows.push(['OPEX на 1 точку в месяц, ₽',         state.std.opex,             state.drx.opex]);
+  rows.push(['Фрод (воровство от продаж), %',      state.std.fraud,            state.drx.fraud]);
+  rows.push(['', '', '']);
+  rows.push(['— РАСЧЁТНЫЕ ПОКАЗАТЕЛИ —', '', '']);
+  rows.push(['Итоговый CAPEX парка, ₽',            round(sm.capexTotal),       round(dm.capexTotal)]);
+  rows.push(['Скидка за объём, %',                 sm.disc,                    dm.disc]);
+  rows.push(['С/с Американо, ₽',                   round(sm.costAmt),          round(dm.costAmt)]);
+  rows.push(['С/с Капучино, ₽',                    round(sm.costCap),          round(dm.costCap)]);
+  rows.push(['Средняя с/с (взвешенная), ₽',        round(sm.avgCost),          round(dm.avgCost)]);
+  rows.push(['Средняя цена продажи, ₽',            round(sm.avgPrice),         round(dm.avgPrice)]);
+  rows.push(['Средняя маржа с 1 чашки, ₽',         round(sm.avgMargin),        round(dm.avgMargin)]);
+  rows.push(['Прибыль парка / мес, ₽',             round(sm.profitPark),       round(dm.profitPark)]);
+  rows.push(['Прибыль за 1 год, ₽',                round(sm.profit1Year),      round(dm.profit1Year)]);
+  rows.push(['Прибыль за 2 года, ₽',               round(sm.profit2Years),     round(dm.profit2Years)]);
+  rows.push(['Затраты за год (COGS+OPEX+фрод), ₽', round(sm.yearlyExpenses),   round(dm.yearlyExpenses)]);
+  rows.push(['Срок окупаемости, мес',              isFinite(sm.paybackMo) ? round(sm.paybackMo, 1) : 'Никогда', isFinite(dm.paybackMo) ? round(dm.paybackMo, 1) : 'Никогда']);
+  rows.push(['Дата окупаемости',                   sm.paybackDate,             dm.paybackDate]);
+  rows.push([`NPV (${periodMo} мес.), ₽`,          round(stdNPV),              round(drxNPV)]);
+  rows.push([`IRR (${periodMo} мес.), %`,          stdIRR != null ? round(stdIRR, 1) : 'N/A', drxIRR != null ? round(drxIRR, 1) : 'N/A']);
+  rows.push(['Прибыль / 1 машина / мес, ₽',        round(stdPPM),              round(drxPPM)]);
+  rows.push(['', '', '']);
+  rows.push(['— СРАВНЕНИЕ DRINKX vs. КОФЕМАШИНА —', '', '']);
+  rows.push(['Доп. прибыль / мес, ₽',              '',                         round(dm.profitPark - sm.profitPark)]);
+  rows.push(['Прибавка маржи / чашка, ₽',          '',                         round(dm.avgMargin - sm.avgMargin)]);
+  rows.push([`Прибыль за ${periodMo} мес. (доп.), ₽`, '',                      round((dm.profitPark - sm.profitPark) * periodMo - (dm.capexTotal - sm.capexTotal))]);
+  rows.push(['Окупаемость DrinkX быстрее на, мес', '',                         isFinite(sm.paybackMo - dm.paybackMo) ? round(sm.paybackMo - dm.paybackMo, 1) : 'N/A']);
+  return rows;
+}
+
+window.exportCSV = function() {
+  const rows = buildExportRows();
+  const esc  = v => {
+    if (v == null) return '';
+    const s = String(v);
+    return /[",;\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  // BOM + ; separator → opens cleanly in Excel RU locale
+  const csv = '﻿' + rows.map(r => r.map(esc).join(';')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `drinkx-roi-${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
+window.exportPDF = function() {
+  // Force any open collapse panels open so they print, then trigger system print
+  document.querySelectorAll('.nx-collapse-panel.open, .ar-collapse-panel.open').forEach(p => p.dataset.wasOpen = '1');
+  window.print();
+};
 
 window.nxToggleTax = function() {
   window.__taxesOn = !window.__taxesOn;
