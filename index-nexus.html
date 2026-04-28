@@ -53,6 +53,37 @@
     .nx-card { background: var(--nx-surface); border: 1px solid var(--nx-border-soft); border-radius: 0; }
     .nx-card-hero { background: var(--nx-surface); border: 1px solid var(--nx-border-soft); border-radius: 31px; }
 
+    /* Hero controls — period selector + taxes toggle */
+    .nx-seg {
+      display: inline-flex; align-items: center; gap: 0;
+      border: 1px solid rgba(148,163,184,0.25);
+    }
+    .nx-seg button {
+      padding: 5px 10px; background: transparent; color: #94A3B8;
+      border: none; border-right: 1px solid rgba(148,163,184,0.18);
+      font-family: inherit; font-size: 10px; font-weight: 500;
+      letter-spacing: 0.08em; cursor: pointer;
+      transition: all 150ms ease;
+    }
+    .nx-seg button:last-child { border-right: none; }
+    .nx-seg button:hover { color: #FFFFFF; background: rgba(255,255,255,0.05); }
+    .nx-seg button.active { background: var(--nx-accent); color: #FFFFFF; }
+    .nx-tax-btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 5px 12px; background: transparent;
+      color: #94A3B8; border: 1px solid rgba(148,163,184,0.25);
+      font-family: inherit; font-size: 10px; font-weight: 500;
+      letter-spacing: 0.08em; cursor: pointer;
+      transition: all 150ms ease;
+    }
+    .nx-tax-btn:hover { color: #FFFFFF; border-color: rgba(255,255,255,0.4); }
+    .nx-tax-btn.on { background: var(--nx-accent); color: #FFFFFF; border-color: var(--nx-accent); }
+    .nx-tax-btn .nx-tax-dot {
+      width: 6px; height: 6px; border-radius: 9999px;
+      background: #64748B; transition: background 150ms ease;
+    }
+    .nx-tax-btn.on .nx-tax-dot { background: #FFFFFF; }
+
     /* Collapse button + panel */
     .nx-collapse-btn {
       display: inline-flex; align-items: center; gap: 6px;
@@ -183,9 +214,9 @@ const state = {
   std: {
     name: 'Обычная кофемашина',
     basePrice: 700000,  parkSize: 50,
-    coffeePrice: 1500,  coffeeBlackDose: 18, coffeeMilkDose: 18,
-    milkPrice: 80,      milkDose: 200,
-    priceAmericano: 150, priceCappuccino: 200,
+    coffeePrice: 1300,  coffeeBlackDose: 18, coffeeMilkDose: 18,
+    milkPrice: 80,      milkDose: 190,
+    priceAmericano: 110, priceCappuccino: 159,
     milkShare: 70,      cupsPerDay: 40,     opex: 9500,
     fraud: 25,
   },
@@ -193,8 +224,8 @@ const state = {
     name: 'DrinkX',
     basePrice: 1200000, parkSize: 50,
     coffeePrice: 1600 / 3, coffeeBlackDose: 30, coffeeMilkDose: 17,
-    milkPrice: 80,      milkDose: 180,
-    priceAmericano: 150, priceCappuccino: 200,
+    milkPrice: 80,      milkDose: 190,
+    priceAmericano: 110, priceCappuccino: 159,
     milkShare: 70,      cupsPerDay: 50,     opex: 3500,
     fraud: 0,
   },
@@ -220,7 +251,16 @@ function calc(d) {
   const cogsPark   = mCups * avgCost;
   const fraudR     = Math.max(0, Math.min(100, d.fraud || 0)) / 100;
   const fraudLoss  = mCups * avgPrice * fraudR;
-  const profitPark = mCups * avgMargin - d.opex * d.parkSize - fraudLoss;
+  let   profitPark = mCups * avgMargin - d.opex * d.parkSize - fraudLoss;
+
+  // Taxes: VAT 22% from gross revenue + 20% income tax on positive profit
+  if (window.__taxesOn) {
+    const VAT_FACTOR = 0.22 / 1.22; // ≈ 0.1803
+    const vatNet = mCups * avgPrice * VAT_FACTOR; // simplified: VAT on revenue, no input credit
+    profitPark -= vatNet;
+    if (profitPark > 0) profitPark *= 0.80; // 20% income tax
+  }
+
   const paybackMo  = profitPark > 0 ? capexTotal / profitPark : Infinity;
 
   // Yearly metrics
@@ -476,7 +516,16 @@ document.getElementById('app').innerHTML = `
           <span style="display:inline-block;width:20px;height:1px;background:var(--nx-accent)"></span>
           <span class="nx-label" style="color:var(--nx-accent);text-transform:uppercase;letter-spacing:0.12em">РИТЕЙЛ-КАЛЬКУЛЯТОР · DRINKX</span>
         </div>
-        <span class="nx-label" style="color:#94A3B8;text-transform:uppercase;letter-spacing:0.08em">CASH FLOW · OPEX · ROI</span>
+        <div class="flex items-center gap-3 flex-wrap">
+          <div class="nx-seg" data-nx-period>
+            <button type="button" data-period="36">36 МЕС</button>
+            <button type="button" data-period="48">48 МЕС</button>
+            <button type="button" data-period="60">60 МЕС</button>
+          </div>
+          <button type="button" class="nx-tax-btn" onclick="nxToggleTax()">
+            <span class="nx-tax-dot"></span> НДС 22% + 20%
+          </button>
+        </div>
       </div>
 
       <!-- Title strip -->
@@ -490,7 +539,7 @@ document.getElementById('app').innerHTML = `
         <div style="flex:1;min-width:280px">
           <div class="flex items-center gap-3" style="margin-bottom:10px">
             <span style="display:inline-block;width:16px;height:1px;background:#34D399"></span>
-            <span class="nx-label" style="color:#34D399;text-transform:uppercase;letter-spacing:0.12em">ПРИБЫЛЬ ЗА 3&nbsp;ГОДА</span>
+            <span id="hero-period-label" class="nx-label" style="color:#34D399;text-transform:uppercase;letter-spacing:0.12em">ПРИБЫЛЬ ЗА 3&nbsp;ГОДА</span>
           </div>
           <p id="hero-net3yr" style="font-size:clamp(56px,9vw,128px);font-weight:200;letter-spacing:-0.055em;color:#34D399;line-height:0.95;font-variant-numeric:tabular-nums">—</p>
           <p id="hero-net3yr-sub" style="font-size:11px;color:#64748B;font-weight:300;margin-top:10px;letter-spacing:0.02em"></p>
@@ -555,13 +604,13 @@ document.getElementById('app').innerHTML = `
     </button>
     <div id="adv-panel" class="adv-panel">
       <div class="grid grid-cols-1 md:grid-cols-3 gap-3" style="padding:0 24px 24px">
-        ${advCard('adv-npv', 'NPV (36 мес.)',
+        ${advCard('adv-npv', 'NPV (выбранный период)',
           'Чистая приведённая стоимость',
-          'Сколько денег в сегодняшних ценах принесёт проект за 3 года, с учётом ставки дисконтирования 12%/год. Формула: NPV = −CAPEX + Прибыль × (1−(1+r)^−36) / r, где r = (1,12)^(1/12)−1 ≈ 0,949%/мес. Положительный NPV означает прибыльность выше барьерной ставки.'
+          'Сколько денег в сегодняшних ценах принесёт проект за выбранный горизонт (период вверху страницы), с учётом ставки дисконтирования 12%/год. Формула: NPV = −CAPEX + Прибыль × (1−(1+r)^−N) / r, где r = (1,12)^(1/12)−1 ≈ 0,949%/мес. Положительный NPV означает прибыльность выше барьерной ставки.'
         )}
-        ${advCard('adv-irr', 'IRR (36 мес.)',
+        ${advCard('adv-irr', 'IRR (выбранный период)',
           'Внутренняя норма доходности',
-          'Годовая ставка доходности, при которой NPV = 0. Чем выше IRR, тем привлекательнее проект. Если IRR > стоимости капитала (12%) — инвестиция оправдана. Рассчитывается методом бисекции: ищем месячную ставку r, при которой ∑PV(прибылей) = CAPEX, затем приводим к годовой: IRR = (1+r)^12 − 1.'
+          'Годовая ставка доходности, при которой NPV = 0 на выбранном горизонте. Чем выше IRR, тем привлекательнее проект. Если IRR > стоимости капитала (12%) — инвестиция оправдана. Рассчитывается методом бисекции: ищем месячную ставку r, при которой ∑PV(прибылей) = CAPEX, затем приводим к годовой: IRR = (1+r)^12 − 1.'
         )}
         ${advCard('adv-ppm', 'Прибыль / машина',
           'Нормализованная прибыль на 1 единицу парка',
@@ -699,7 +748,8 @@ let chart = null;
 
 function initChart() {
   const ctx = document.getElementById('cf-chart').getContext('2d');
-  const labels = Array.from({length: 49}, (_, i) => i);
+  const periodMo = window.__periodMo || 36;
+  const labels = Array.from({length: periodMo + 1}, (_, i) => i);
   chart = new Chart(ctx, {
     type: 'line',
     data: {
@@ -707,7 +757,7 @@ function initChart() {
       datasets: [
         {
           label: 'Обычная кофемашина',
-          data: new Array(49).fill(0),
+          data: new Array((window.__periodMo || 36) + 1).fill(0),
           borderColor: '#94A3B8',
           borderWidth: 1.5,
           borderDash: [4, 4],
@@ -716,7 +766,7 @@ function initChart() {
         },
         {
           label: 'DrinkX',
-          data: new Array(49).fill(0),
+          data: new Array((window.__periodMo || 36) + 1).fill(0),
           borderColor: '#F97316',
           borderWidth: 2.5,
           pointRadius: 0,
@@ -780,7 +830,14 @@ function initChart() {
 
 function updateChart(sm, dm) {
   if (!chart) return;
-  for (let i = 0; i <= 48; i++) {
+  const periodMo = window.__periodMo || 36;
+  // Resize datasets/labels if period changed
+  if (chart.data.labels.length !== periodMo + 1) {
+    chart.data.labels = Array.from({length: periodMo + 1}, (_, i) => i);
+    chart.data.datasets[0].data = new Array(periodMo + 1).fill(0);
+    chart.data.datasets[1].data = new Array(periodMo + 1).fill(0);
+  }
+  for (let i = 0; i <= periodMo; i++) {
     chart.data.datasets[0].data[i] = Math.round(sm.profitPark * i - sm.capexTotal);
     chart.data.datasets[1].data[i] = Math.round(dm.profitPark * i - dm.capexTotal);
   }
@@ -805,17 +862,25 @@ function updateAll() {
   const bothLoss    = !isFinite(sm.paybackMo) && !isFinite(dm.paybackMo);
 
   // ── Hero Banner ────────────────────────────────────────
-  const net3yr = profitDiff * 36 - (dm.capexTotal - sm.capexTotal);
+  const periodMo = window.__periodMo || 36;
+  const periodYrs = periodMo / 12;
+  const net3yr = profitDiff * periodMo - (dm.capexTotal - sm.capexTotal);
   const hEl    = document.getElementById('hero-net3yr');
   const hSub   = document.getElementById('hero-net3yr-sub');
+  const hLabel = document.getElementById('hero-period-label');
+  if (hLabel) {
+    const yrsStr = periodYrs % 1 === 0 ? `${periodYrs}` : periodYrs.toFixed(1);
+    const yrsWord = periodYrs === 1 ? 'ГОД' : (periodYrs >= 2 && periodYrs < 5) ? 'ГОДА' : 'ЛЕТ';
+    hLabel.textContent = `ПРИБЫЛЬ ЗА ${yrsStr} ${yrsWord}`;
+  }
   if (hEl) {
     hEl.textContent = (net3yr >= 0 ? '+' : '') + fCur(net3yr);
     hEl.style.color = net3yr >= 0 ? '#34D399' : '#F87171';
   }
   if (hSub) {
     hSub.textContent = net3yr >= 0
-      ? `С учётом разницы CAPEX ${fCur(dm.capexTotal - sm.capexTotal)}`
-      : `DrinkX менее выгоден на 3-летнем горизонте при текущих параметрах`;
+      ? `С учётом разницы CAPEX ${fCur(dm.capexTotal - sm.capexTotal)}` + (window.__taxesOn ? ' · с НДС 22% и налогом 20%' : '')
+      : `DrinkX менее выгоден на ${periodYrs}-летнем горизонте при текущих параметрах`;
   }
   const delayEl = document.getElementById('hero-delay');
   if (delayEl) {
@@ -841,10 +906,10 @@ function updateAll() {
   }
 
   // ── Advanced Section ───────────────────────────────────
-  const stdNPV = calcNPV(sm.profitPark, sm.capexTotal);
-  const drxNPV = calcNPV(dm.profitPark, dm.capexTotal);
-  const stdIRR = calcIRR(sm.profitPark, sm.capexTotal);
-  const drxIRR = calcIRR(dm.profitPark, dm.capexTotal);
+  const stdNPV = calcNPV(sm.profitPark, sm.capexTotal, periodMo);
+  const drxNPV = calcNPV(dm.profitPark, dm.capexTotal, periodMo);
+  const stdIRR = calcIRR(sm.profitPark, sm.capexTotal, periodMo);
+  const drxIRR = calcIRR(dm.profitPark, dm.capexTotal, periodMo);
   const stdPPM = state.std.parkSize > 0 ? sm.profitPark / state.std.parkSize : 0;
   const drxPPM = state.drx.parkSize > 0 ? dm.profitPark / state.drx.parkSize : 0;
 
@@ -1109,9 +1174,37 @@ function initTooltips() {
   });
 }
 
+/* ═══════════════════════════════════════════════════════════
+   PERIOD + TAXES — global controls in hero
+═══════════════════════════════════════════════════════════ */
+window.__periodMo = 36;
+window.__taxesOn  = false;
+
+window.nxToggleTax = function() {
+  window.__taxesOn = !window.__taxesOn;
+  document.querySelectorAll('.nx-tax-btn').forEach(b => b.classList.toggle('on', window.__taxesOn));
+  updateAll();
+};
+
+function setupHeroControls() {
+  // Period segmented control
+  document.querySelectorAll('[data-nx-period] button').forEach(btn => {
+    const p = parseInt(btn.dataset.period, 10);
+    btn.classList.toggle('active', p === window.__periodMo);
+    btn.addEventListener('click', () => {
+      window.__periodMo = p;
+      document.querySelectorAll('[data-nx-period] button').forEach(b => {
+        b.classList.toggle('active', parseInt(b.dataset.period, 10) === p);
+      });
+      updateAll();
+    });
+  });
+}
+
 populateInputs();
 initChart();
 setupInputListeners();
+setupHeroControls();
 updateAll();
 initTooltips();
 </script>
