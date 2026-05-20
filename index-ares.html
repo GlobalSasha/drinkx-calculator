@@ -659,9 +659,10 @@ document.getElementById('app').innerHTML = `
             <button type="button" data-period="48">48 МЕС</button>
             <button type="button" data-period="60">60 МЕС</button>
           </div>
-          <button type="button" class="ar-tax-btn" onclick="arToggleTax()">
+          <button type="button" class="ar-tax-btn" data-tax-toggle onclick="arToggleTax()">
             <span class="ar-tax-dot"></span> НДС 22% + 20%
           </button>
+          <button type="button" class="ar-tax-btn" onclick="copyShareLink(this)" title="Скопировать ссылку на текущий расчёт">↗ ССЫЛКА</button>
           <button type="button" class="ar-tax-btn" onclick="exportCSV()" title="Скачать в Excel (CSV)">↓ EXCEL</button>
           <button type="button" class="ar-tax-btn" onclick="exportPDF()" title="Печать / сохранить как PDF">↓ PDF</button>
         </div>
@@ -1332,6 +1333,103 @@ function initTooltips() {
 window.__periodMo = 36;
 window.__taxesOn  = false;
 
+/* ─── Shareable calculation link ─────────────────────────── */
+const SHARE_HASH_PREFIX = 'calc=';
+const SHARE_VERSION = 1;
+
+function encodeSharePayload(payload) {
+  const json = JSON.stringify(payload);
+  const bytes = new TextEncoder().encode(json);
+  let binary = '';
+  bytes.forEach(byte => { binary += String.fromCharCode(byte); });
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function decodeSharePayload(encoded) {
+  const padded = encoded.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(encoded.length / 4) * 4, '=');
+  const binary = atob(padded);
+  const bytes = Uint8Array.from(binary, ch => ch.charCodeAt(0));
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+
+function serializableStateItem(item) {
+  return Object.fromEntries(
+    Object.entries(item).filter(([key]) => key !== 'name')
+  );
+}
+
+function getSharePayload() {
+  return {
+    v: SHARE_VERSION,
+    periodMo: window.__periodMo || 36,
+    taxesOn: !!window.__taxesOn,
+    std: serializableStateItem(state.std),
+    drx: serializableStateItem(state.drx),
+  };
+}
+
+function applySharedStateFromHash() {
+  if (!location.hash.startsWith(`#${SHARE_HASH_PREFIX}`)) return false;
+
+  try {
+    const payload = decodeSharePayload(location.hash.slice(SHARE_HASH_PREFIX.length + 1));
+    if (!payload || typeof payload !== 'object') return false;
+
+    ['std', 'drx'].forEach(key => {
+      if (!payload[key] || typeof payload[key] !== 'object') return;
+      Object.keys(state[key]).forEach(field => {
+        if (field === 'name' || payload[key][field] == null) return;
+        const value = Number(payload[key][field]);
+        if (Number.isFinite(value)) state[key][field] = value;
+      });
+    });
+
+    const period = Number(payload.periodMo);
+    if ([36, 48, 60].includes(period)) window.__periodMo = period;
+    window.__taxesOn = !!payload.taxesOn;
+    return true;
+  } catch (error) {
+    console.warn('Не удалось восстановить расчёт из ссылки:', error);
+    return false;
+  }
+}
+
+function buildShareUrl() {
+  const url = new URL(location.href);
+  url.hash = `${SHARE_HASH_PREFIX}${encodeSharePayload(getSharePayload())}`;
+  return url.toString();
+}
+
+window.copyShareLink = async function(button) {
+  const url = buildShareUrl();
+  const originalText = button ? button.textContent : '';
+
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(url);
+    } else {
+      const input = document.createElement('textarea');
+      input.value = url;
+      input.setAttribute('readonly', '');
+      input.style.position = 'fixed';
+      input.style.left = '-9999px';
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand('copy');
+      document.body.removeChild(input);
+    }
+
+    if (button) {
+      button.textContent = '✓ СКОПИРОВАНО';
+      setTimeout(() => { button.textContent = originalText; }, 1800);
+    }
+
+    history.replaceState(null, '', url);
+  } catch (error) {
+    prompt('Скопируйте ссылку на расчёт:', url);
+  }
+};
+
 /* ─── Export: CSV (для Excel) ────────────────────────────── */
 function buildExportRows() {
   const sm = calc(state.std);
@@ -1416,7 +1514,7 @@ window.exportPDF = function() {
 
 window.arToggleTax = function() {
   window.__taxesOn = !window.__taxesOn;
-  document.querySelectorAll('.ar-tax-btn').forEach(b => b.classList.toggle('on', window.__taxesOn));
+  document.querySelectorAll('[data-tax-toggle]').forEach(b => b.classList.toggle('on', window.__taxesOn));
   updateAll();
 };
 
@@ -1432,8 +1530,10 @@ function setupHeroControls() {
       updateAll();
     });
   });
+  document.querySelectorAll('[data-tax-toggle]').forEach(b => b.classList.toggle('on', window.__taxesOn));
 }
 
+applySharedStateFromHash();
 populateInputs();
 initChart();
 setupInputListeners();
