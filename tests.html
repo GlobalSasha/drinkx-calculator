@@ -767,6 +767,35 @@ function runTests(win) {
         'Первая строка содержит УБЫТОК', firstLine, firstLine.includes('УБЫТОК'));
   }
 
+
+  /* ── 60. NPV/IRR tooltips must describe the mode actually on screen ── */
+  {
+    const doc = win.document;
+    const read = id => (doc.getElementById(id) || {}).textContent || '';
+    const setMode = m => {
+      const btn = [...doc.querySelectorAll('button[aria-pressed]')]
+        .find(b => b.textContent.trim() === m);
+      if (btn) btn.click();
+    };
+    const originalMode = state.ui.acquisitionMode;
+
+    setMode('Покупка');
+    const npvBuy = read('adv-npv-tip'), irrBuy = read('adv-irr-tip');
+    setMode('Аренда');
+    const npvRent = read('adv-npv-tip'), irrRent = read('adv-irr-tip');
+    setMode(originalMode === 'rental' ? 'Аренда' : 'Покупка');
+
+    const buyMentionsCapex  = npvBuy.includes('CAPEX') && irrBuy.includes('CAPEX');
+    const rentNoMinusCapex  = !npvRent.includes('−CAPEX');
+    const rentSaysUndefined = /не определ/i.test(irrRent);
+    const differs = npvBuy !== npvRent && irrBuy !== irrRent;
+    const pass = buyMentionsCapex && rentNoMinusCapex && rentSaysUndefined && differs;
+    add('60. Подсказки NPV и IRR меняются вместе с режимом',
+        'покупка — про CAPEX; аренда — без вычета вложений, IRR не определён',
+        `покупкаCAPEX=${buyMentionsCapex}, арендаБезCAPEX=${rentNoMinusCapex}, ` +
+        `IRRнеОпределён=${rentSaysUndefined}, тексты различаются=${differs}`, pass);
+  }
+
   win.__taxesOn = false;
 }
 

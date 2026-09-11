@@ -84,19 +84,47 @@
     }
 
     /* Hero controls — period selector + taxes toggle */
+    /* Segmented control: a recessed track with a raised thumb.
+       The thumb carries its own pill radius and sits inside the track's
+       padding, so it follows the outline instead of being clipped by it. */
     .ar-seg {
-      display: inline-flex; align-items: center; gap: 0;
-      border: 1px solid rgba(255,255,255,0.18); border-radius: 9999px; overflow: hidden;
+      display: inline-flex; align-items: center; gap: 2px;
+      padding: 3px;
+      background: rgba(0,0,0,0.20);
+      border: 1px solid rgba(255,255,255,0.16);
+      border-radius: 9999px;
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.32),
+                  inset 0 -1px 0 rgba(255,255,255,0.06),
+                  0 1px 0 rgba(255,255,255,0.08);
     }
     .ar-seg button {
-      padding: 5px 12px; background: transparent; color: rgba(255,255,255,0.55);
-      border: none;
+      padding: 5px 14px; background: transparent; color: rgba(255,255,255,0.58);
+      border: none; border-radius: 9999px;
       font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 500;
-      letter-spacing: 0.08em; cursor: pointer;
-      transition: all 150ms ease;
+      letter-spacing: 0.08em; cursor: pointer; white-space: nowrap;
+      transition: color 160ms ease, background-color 160ms ease,
+                  box-shadow 160ms ease, transform 160ms ease;
     }
-    .ar-seg button:hover { color: var(--ar-white); background: rgba(255,255,255,0.08); }
-    .ar-seg button.active { background: var(--ar-surface); color: var(--ar-white); }
+    .ar-seg button:hover { color: var(--ar-white); background: rgba(255,255,255,0.10); }
+    .ar-seg button:focus-visible {
+      outline: 2px solid rgba(255,255,255,0.65); outline-offset: 2px;
+    }
+    .ar-seg button.active {
+      color: var(--ar-white);
+      background: linear-gradient(180deg, rgba(255,255,255,0.20), rgba(255,255,255,0) 58%),
+                  var(--ar-surface);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.34),
+                  inset 0 -1px 0 rgba(0,0,0,0.22),
+                  0 2px 5px rgba(0,0,0,0.30),
+                  0 1px 1px rgba(0,0,0,0.20);
+      transform: translateY(-0.5px);
+    }
+    .ar-seg button.active:hover { background: linear-gradient(180deg, rgba(255,255,255,0.26), rgba(255,255,255,0) 58%), var(--ar-surface); }
+    .ar-seg button:active { transform: translateY(0.5px); }
+    @media (prefers-reduced-motion: reduce) {
+      .ar-seg button { transition: none; }
+      .ar-seg button.active, .ar-seg button:active { transform: none; }
+    }
     .ar-tax-btn {
       display: inline-flex; align-items: center; gap: 8px;
       padding: 5px 14px; background: transparent;
@@ -781,6 +809,13 @@ function dashCard(id, title, sub, icon) {
   </div>`;
 }
 
+/* Tooltip bodies differ by acquisition mode: in rental the customer has no
+   capital outlay, so the purchase-mode formulas do not describe what is shown. */
+const TIP_NPV_PURCHASE = 'Сколько денег в сегодняшних ценах принесёт проект за выбранный горизонт (период вверху страницы), с учётом ставки дисконтирования 12%/год. Формула: NPV = −CAPEX + Прибыль × (1−(1+r)^−N) / r, где r = (1,12)^(1/12)−1 ≈ 0,949%/мес. Положительный NPV означает прибыльность выше барьерной ставки.';
+const TIP_NPV_RENTAL   = 'В аренде клиент не вкладывает капитал, поэтому вычитать нечего: NPV здесь — приведённая стоимость прибыли точки после арендного платежа за выбранный горизонт, при ставке дисконтирования 12%/год. Формула: NPV = Прибыль после платежа × (1−(1+r)^−N) / r, где r = (1,12)^(1/12)−1 ≈ 0,949%/мес. Колонка обычной кофемашины считается по обычной формуле, с вычетом CAPEX.';
+const TIP_IRR_PURCHASE = 'Годовая ставка доходности, при которой NPV = 0 на выбранном горизонте. Чем выше IRR, тем привлекательнее проект. Если IRR > стоимости капитала (12%) — инвестиция оправдана. Рассчитывается методом бисекции: ищем месячную ставку r, при которой ∑PV(прибылей) = CAPEX, затем приводим к годовой: IRR = (1+r)^12 − 1.';
+const TIP_IRR_RENTAL   = 'Для аренды показатель не определён и в колонке DrinkX стоит прочерк. IRR — это доходность на вложенный капитал, а в аренде клиент ничего не вкладывает: делить прибыль не на что. Для обычной кофемашины IRR считается как обычно.';
+
 function advCard(id, label, tooltipTitle, tooltipBody) {
   return `
   <div class="flex flex-col gap-4" style="background:rgba(255,255,255,0.06);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,0.1);padding:20px;border-radius:12px">
@@ -789,7 +824,7 @@ function advCard(id, label, tooltipTitle, tooltipBody) {
       <span style="color:var(--ar-soft);font-size:11px">ⓘ</span>
       <div class="tip-box">
         <p class="ar-micro" style="color:var(--ar-soft);margin-bottom:8px">${tooltipTitle}</p>
-        <p style="color:#FED7AA;font-size:12px;line-height:1.6;font-weight:300">${tooltipBody}</p>
+        <p id="${id}-tip" style="color:#FED7AA;font-size:12px;line-height:1.6;font-weight:300">${tooltipBody}</p>
       </div>
     </div>
     <div class="flex gap-8 items-baseline flex-wrap">
@@ -1401,6 +1436,8 @@ function updateAll() {
     irrEl.removeAttribute('title');
   }
 
+  setText('adv-npv-tip', isRental ? TIP_NPV_RENTAL : TIP_NPV_PURCHASE);
+  setText('adv-irr-tip', isRental ? TIP_IRR_RENTAL : TIP_IRR_PURCHASE);
   setText('cf-formula-text', isRental
     ? 'Накопительная прибыль DrinkX = Прибыль после аренды × Месяцы, без вычета CAPEX. Линия DrinkX отражает экономику после арендного платежа; обычная кофемашина — экономику покупки с вычетом CAPEX.'
     : 'Накопительная прибыль = (Ежемесячная прибыль × Месяцы) − CAPEX. Пересечение нулевой оси = полная окупаемость.');
@@ -1476,9 +1513,9 @@ function generateAuditText(sm, dm, std, drx, rental) {
     const rr = rental.rr;
     const profitDiff = dmProfit - smProfit;
     if (dmProfit > smProfit) {
-      L.push(`${drx.name} по арендной схеме «${rental.offer.label}» даёт точке больше прибыли, чем покупка ${std.name}: ${fCur(dmProfit)}/мес. против ${fCur(smProfit)}/мес. (разница ${fCur(profitDiff)}/мес.).`);
+      L.push(`${drx.name} по арендной схеме «${rental.offer.label}» даёт точке больше прибыли, чем ${std.name} при покупке: ${fCur(dmProfit)}/мес. против ${fCur(smProfit)}/мес. (разница ${fCur(profitDiff)}/мес.).`);
     } else if (dmProfit < smProfit) {
-      L.push(`При аренде «${rental.offer.label}» ${drx.name} приносит точке меньше, чем покупка ${std.name}: ${fCur(dmProfit)}/мес. против ${fCur(smProfit)}/мес. (разница ${fCur(profitDiff)}/мес.).`);
+      L.push(`При аренде «${rental.offer.label}» ${drx.name} приносит точке меньше, чем ${std.name} при покупке: ${fCur(dmProfit)}/мес. против ${fCur(smProfit)}/мес. (разница ${fCur(profitDiff)}/мес.).`);
     } else {
       L.push(`При аренде «${rental.offer.label}» прибыль точки на ${drx.name} и на ${std.name} совпадает: ${fCur(dmProfit)}/мес.`);
     }
