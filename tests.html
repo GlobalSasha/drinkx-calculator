@@ -580,6 +580,138 @@ function runTests(win) {
         `${expectedDelta}`, `${actualDelta}`, exactEq(actualDelta, expectedDelta));
   }
 
+  /* ── 50. Rental share payload round-trips mode and offer ── */
+  {
+    const originalMode = state.ui.acquisitionMode;
+    const originalOffer = state.ui.rentalOfferId;
+    state.ui.acquisitionMode = 'rental';
+    state.ui.rentalOfferId = 'half';
+    const payload = win.getSharePayload();
+    const decoded = win.decodeSharePayload(win.encodeSharePayload(payload));
+    state.ui.acquisitionMode = 'purchase';
+    state.ui.rentalOfferId = 'year';
+    win.location.hash = `calc=${win.encodeSharePayload(decoded)}`;
+    const applied = win.applySharedStateFromHash();
+    const actual = `applied=${applied}, mode=${state.ui.acquisitionMode}, offer=${state.ui.rentalOfferId}`;
+    add('50. Share link восстанавливает аренду и тариф half',
+        'applied=true, mode=rental, offer=half', actual,
+        applied && state.ui.acquisitionMode === 'rental' && state.ui.rentalOfferId === 'half');
+    state.ui.acquisitionMode = originalMode;
+    state.ui.rentalOfferId = originalOffer;
+    win.history.replaceState(null, '', `${win.location.pathname}${win.location.search}`);
+    win.updateAll();
+  }
+
+  /* ── 51. Share payload carries only rental identifiers, never rental rates ── */
+  {
+    const originalMode = state.ui.acquisitionMode;
+    const originalOffer = state.ui.rentalOfferId;
+    state.ui.acquisitionMode = 'rental';
+    state.ui.rentalOfferId = 'half';
+    const payload = win.getSharePayload();
+    const json = JSON.stringify(payload);
+    const numericOfferPairs = MODEL.rental.offers.flatMap(offer =>
+      Object.entries(offer)
+        .filter(([, value]) => typeof value === 'number')
+        .map(([key, value]) => `"${key}":${value}`));
+    const leakedPair = numericOfferPairs.find(pair => json.includes(pair)) || 'нет';
+    const knownOffer = MODEL.rental.offers.some(offer => offer.id === payload.offer);
+    const pass = payload.v === 2 && payload.mode === 'rental' && knownOffer && leakedPair === 'нет';
+    add('51. Share payload содержит только id тарифа без арендных ставок',
+        'v=2, mode=rental, offer=half, leakedPair=нет',
+        `v=${payload.v}, mode=${payload.mode}, offer=${payload.offer}, leakedPair=${leakedPair}`, pass);
+    state.ui.acquisitionMode = originalMode;
+    state.ui.rentalOfferId = originalOffer;
+    win.updateAll();
+  }
+
+  /* ── 52. Invalid mode and offer fall back to UI defaults ── */
+  {
+    const originalMode = state.ui.acquisitionMode;
+    const originalOffer = state.ui.rentalOfferId;
+    state.ui.acquisitionMode = 'purchase';
+    state.ui.rentalOfferId = 'year';
+    const payload = { ...win.getSharePayload(), mode: 'lease', offer: 'fabricated' };
+    win.location.hash = `calc=${win.encodeSharePayload(payload)}`;
+    const applied = win.applySharedStateFromHash();
+    const actual = `applied=${applied}, mode=${state.ui.acquisitionMode}, offer=${state.ui.rentalOfferId}`;
+    add('52. Неизвестные mode и offer заменяются значениями по умолчанию',
+        'applied=true, mode=purchase, offer=year', actual,
+        applied && state.ui.acquisitionMode === 'purchase' && state.ui.rentalOfferId === 'year');
+    state.ui.acquisitionMode = originalMode;
+    state.ui.rentalOfferId = originalOffer;
+    win.history.replaceState(null, '', `${win.location.pathname}${win.location.search}`);
+    win.updateAll();
+  }
+
+  /* ── 53. Payload without v is ignored completely ── */
+  {
+    const originalMode = state.ui.acquisitionMode;
+    const originalOffer = state.ui.rentalOfferId;
+    state.ui.acquisitionMode = 'purchase';
+    state.ui.rentalOfferId = 'year';
+    const payload = { ...win.getSharePayload(), mode: 'rental', offer: 'half' };
+    delete payload.v;
+    win.location.hash = `calc=${win.encodeSharePayload(payload)}`;
+    const applied = win.applySharedStateFromHash();
+    const actual = `applied=${applied}, mode=${state.ui.acquisitionMode}, offer=${state.ui.rentalOfferId}`;
+    add('53. Share payload без v полностью игнорируется',
+        'applied=false, mode=purchase, offer=year', actual,
+        !applied && state.ui.acquisitionMode === 'purchase' && state.ui.rentalOfferId === 'year');
+    state.ui.acquisitionMode = originalMode;
+    state.ui.rentalOfferId = originalOffer;
+    win.history.replaceState(null, '', `${win.location.pathname}${win.location.search}`);
+    win.updateAll();
+  }
+
+  /* ── 54. HTML-looking mode never reaches page markup ── */
+  {
+    const originalMode = state.ui.acquisitionMode;
+    const originalOffer = state.ui.rentalOfferId;
+    const attack = '<img src=x onerror=alert(1)>';
+    state.ui.acquisitionMode = 'purchase';
+    state.ui.rentalOfferId = 'year';
+    const payload = { ...win.getSharePayload(), mode: attack, offer: 'half' };
+    win.location.hash = `calc=${win.encodeSharePayload(payload)}`;
+    win.applySharedStateFromHash();
+    const inDom = win.document.body.innerHTML.includes(attack);
+    const actual = `mode=${state.ui.acquisitionMode}, inDom=${inDom}`;
+    add('54. HTML-строка в mode не попадает в DOM',
+        'mode=purchase, inDom=false', actual,
+        state.ui.acquisitionMode === 'purchase' && !inDom);
+    state.ui.acquisitionMode = originalMode;
+    state.ui.rentalOfferId = originalOffer;
+    win.history.replaceState(null, '', `${win.location.pathname}${win.location.search}`);
+    win.updateAll();
+  }
+
+  /* ── 55. Rental CSV rows appear only in rental mode ── */
+  {
+    const originalMode = state.ui.acquisitionMode;
+    const originalOffer = state.ui.rentalOfferId;
+    const offer = MODEL.rental.offers.find(item => item.id === 'half');
+    state.ui.acquisitionMode = 'rental';
+    state.ui.rentalOfferId = 'half';
+    const rentalRows = win.buildExportRows();
+    const paymentRow = rentalRows.find(row => row[0] === 'Платёж за станцию / мес, ₽');
+    const ownershipRow = rentalRows.find(row => row[0] === 'Переход собственности, месяц');
+    const drxOps = win.calculateOperations(state.drx, MODEL, win.__taxesOn);
+    const expectedOwnership = win.calculateRental(drxOps, state.drx, offer, MODEL).ownershipMonth;
+    state.ui.acquisitionMode = 'purchase';
+    const purchaseRows = win.buildExportRows();
+    const purchaseHasRentalRows = purchaseRows.some(row =>
+      row[0] === 'Платёж за станцию / мес, ₽' || row[0] === 'Переход собственности, месяц');
+    const pass = paymentRow?.[2] === offer.payment
+      && ownershipRow?.[2] === expectedOwnership
+      && !purchaseHasRentalRows;
+    add('55. Rental-строки CSV есть только в режиме аренды',
+        `payment=${offer.payment}, ownership=${expectedOwnership}, purchaseHasRentalRows=false`,
+        `payment=${paymentRow?.[2]}, ownership=${ownershipRow?.[2]}, purchaseHasRentalRows=${purchaseHasRentalRows}`, pass);
+    state.ui.acquisitionMode = originalMode;
+    state.ui.rentalOfferId = originalOffer;
+    win.updateAll();
+  }
+
   win.__taxesOn = false;
 }
 
