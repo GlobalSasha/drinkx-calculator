@@ -1,3 +1,8 @@
+> **Обновлено 11 сентября 2026.** Калькулятор переведён на финансовую модель
+> сентября 2026, добавлен арендный сценарий, лишние версии интерфейса удалены.
+> Разбор изменений и решения заказчика — в `plans/roi-calculator-model-update/`
+> (каталог не публикуется).
+
 # DrinkX ROI Calculator — Project Documentation
 
 Last updated: 2026-05-21
@@ -9,13 +14,13 @@ The calculator compares the economics of a classic coffee-machine park against D
 The current production page is:
 
 ```text
-https://globalsasha.github.io/drinkx-calculator/index-ares.html
+https://globalsasha.github.io/drinkx-calculator/index.html
 ```
 
 The main implementation file is:
 
 ```text
-/Users/aleksandrhvastunov/drinkx-calculator/index-ares.html
+/Users/aleksandrhvastunov/drinkx-calculator/index.html
 ```
 
 ## Architecture
@@ -32,18 +37,18 @@ The app is implemented as a single HTML file with embedded CSS and JavaScript:
 
 ## Production file
 
-Use `index-ares.html` for current work.
+Use `index.html` for current work.
 
 Older/alternative files:
 
 - `index.html` — baseline version.
-- `index-nexus.html` — Nexus design variation.
+- `index.html` — Nexus design variation.
 
 Do not start new feature work from `index.html` unless intentionally rebuilding from the older version.
 
 ## State model
 
-The main state object is in `index-ares.html` near the `STATE` section.
+The main state object is in `index.html` near the `STATE` section.
 
 There are two calculation columns:
 

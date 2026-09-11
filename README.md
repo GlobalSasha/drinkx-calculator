@@ -1,64 +1,71 @@
 # DrinkX ROI Calculator
 
-Static GitHub Pages calculator for comparing a classic coffee-machine park with DrinkX.
+Статический калькулятор для отдела продаж: сравнивает парк обычных кофемашин
+со станциями DrinkX и показывает, во что обойдётся покупка или аренда.
+Открывается в браузере, без сборки и без сервера.
 
-## Main links
+## Ссылки
 
-- Live Ares version: https://globalsasha.github.io/drinkx-calculator/index-ares.html
-- Repository: https://github.com/GlobalSasha/drinkx-calculator
-- Main working file: `index-ares.html`
+- Рабочая версия: https://globalsasha.github.io/drinkx-calculator/
+- Автотесты: https://globalsasha.github.io/drinkx-calculator/tests.html
+- Репозиторий: https://github.com/GlobalSasha/drinkx-calculator
 
-## Project files
+## Файлы
 
-- `index-ares.html` — current production version with the Ares visual design.
-- `index-nexus.html` — alternative Nexus visual version.
-- `index.html` — earlier baseline version.
-- `.nojekyll` — keeps GitHub Pages from running Jekyll processing.
-- `docs/PROJECT_DOCUMENTATION.md` — technical and product documentation.
-- `docs/STATUS_2026-05-21.md` — current session status and next-start context.
+| Файл | Назначение |
+|---|---|
+| `index.html` | Калькулятор целиком: разметка, стили, расчёт. Единственная рабочая версия |
+| `tests.html` | Автотесты расчётных функций. Грузит калькулятор во фрейм и проверяет 59 сценариев |
+| `.nojekyll` | Отключает обработку Jekyll на GitHub Pages |
+| `docs/` | Техническая документация |
 
-## Current production features
+Версий интерфейса больше одной не держим: три расходящиеся копии уже приводили
+к тому, что клиент открывал устаревшие цифры.
 
-- ROI comparison between classic coffee machines and DrinkX.
-- Separate editable input columns for classic machine and DrinkX.
-- CAPEX discount logic by park size.
-- Weighted drink mix by black coffee vs milk drinks.
-- Monthly park profit, payback, yearly profit, NPV, IRR, profit per machine.
-- Period selector: 36, 48, 60 months.
-- Optional simplified tax mode: VAT 22% + profit tax 20%.
-- CSV export for Excel.
-- PDF via browser print.
-- Shareable calculation links via URL hash.
+## Что умеет
 
-## Local development
+- Сравнение обычной кофемашины и DrinkX: выручка, себестоимость напитка, фрод,
+  прибыль парка, срок окупаемости, NPV, IRR, прибыль на машину
+- Два способа получения станции: покупка и аренда
+- Аренда: три срока договора, выкуп с зачётом уплаченного, переход собственности
+- Блок «Покупка или аренда»: с какого месяца выгоднее купить
+- Горизонты расчёта 36, 48 и 60 месяцев
+- Налоговый режим: НДС и налог на прибыль включаются переключателем
+- Ссылка с сохранённым расчётом, выгрузка в CSV, печать в PDF
 
-Open the project folder:
+## Модель
+
+Все числовые допущения собраны в объекте `MODEL` в начале скрипта: ставки,
+значения по умолчанию обеих колонок, ступени скидки по размеру парка и арендные
+тарифы. Менять цифры нужно только там — интерфейс, расчёт, выгрузка и тексты
+читают их оттуда. Дата модели показана в шапке страницы.
+
+Внутренние показатели — себестоимость оборудования, наценка, маржа, предел
+скидки — в этот репозиторий не попадают. Репозиторий публичный.
+
+## Локальный запуск
 
 ```bash
-cd /Users/aleksandrhvastunov/drinkx-calculator
-```
-
-Run a local static server:
-
-```bash
+cd ~/drinkx-calculator
 python3 -m http.server 5175
 ```
 
-Then open:
+Калькулятор — http://localhost:5175/, тесты — http://localhost:5175/tests.html
 
-```text
-http://localhost:5175/index-ares.html
-```
+Тесты требуют запуска через http: по протоколу `file://` браузер не даст
+странице тестов обратиться к загруженному во фрейм калькулятору.
 
-## Deploy
+## Деплой
 
-GitHub Pages serves the `main` branch root. To deploy:
+GitHub Pages раздаёт ветку `main` из корня.
 
 ```bash
-git add .
-git commit -m "Describe change"
+git add index.html tests.html
+git commit -m "Описание изменения"
 git push origin main
 ```
 
-GitHub Pages usually updates within 1-3 minutes.
+Добавляйте файлы поимённо. `git add .` затянет в публичный репозиторий всё, что
+лежит рядом в рабочей копии, включая рабочие материалы с коммерческими цифрами.
 
+Страница обновляется через одну-три минуты после push.
