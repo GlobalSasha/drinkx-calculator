@@ -1463,9 +1463,9 @@ function generateAuditText(sm, dm, std, drx, rental) {
     if (smLoss && dmLoss) {
       L.push(`УБЫТОК: обе модели убыточны при текущих параметрах — ${std.name}: ${fCur(smProfit)}/мес., ${drx.name}: ${fCur(dmProfit)}/мес.`);
     } else if (dmLoss) {
-      L.push(`УБЫТОК: ${drx.name} убыточен при текущих параметрах — ${fCur(dmProfit)}/мес.`);
+      L.push(`УБЫТОК: ${drx.name} приносит убыток ${fCur(dmProfit)}/мес. при текущих параметрах.`);
     } else {
-      L.push(`УБЫТОК: ${std.name} убыточен при текущих параметрах — ${fCur(smProfit)}/мес.`);
+      L.push(`УБЫТОК: ${std.name} приносит убыток ${fCur(smProfit)}/мес. при текущих параметрах.`);
     }
     L.push('');
   }
