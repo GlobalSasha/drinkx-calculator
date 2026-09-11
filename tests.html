@@ -75,10 +75,11 @@ function runTests(win) {
   // script and can see MODEL/state as bare identifiers, then hands them out via
   // a new window property. This does not modify the index.html file on disk.
   const exportScript = win.document.createElement('script');
-  exportScript.textContent = 'window.__TEST_EXPORTS = { MODEL, state };';
+  exportScript.textContent = 'window.__TEST_EXPORTS = { MODEL, state, fCur };';
   win.document.body.appendChild(exportScript);
   const MODEL = win.__TEST_EXPORTS.MODEL;
   const state = win.__TEST_EXPORTS.state;
+  const fCur  = win.__TEST_EXPORTS.fCur;
   const calc = win.calc;
   const calcNPV = win.calcNPV;
   const calcIRR = win.calcIRR;
@@ -710,6 +711,60 @@ function runTests(win) {
     state.ui.acquisitionMode = originalMode;
     state.ui.rentalOfferId = originalOffer;
     win.updateAll();
+  }
+
+  /* ── 56. Marketing generator is removed from the source ── */
+  {
+    const source = win.document.documentElement.outerHTML;
+    const forbidden = ['generateMarketingText', 'genMarketing', 'Маркетинговые идеи'];
+    const found = forbidden.filter(item => source.includes(item));
+    add('56. Генератор маркетинговых идей удалён',
+        'Совпадений нет', found.length ? found.join(', ') : 'Совпадений нет', found.length === 0);
+  }
+
+  /* ── 57. Purchase audit includes both payback periods ── */
+  {
+    const originalMode = state.ui.acquisitionMode;
+    state.ui.acquisitionMode = 'purchase';
+    const sm = win.calc(state.std);
+    const dm = win.calc(state.drx);
+    const text = win.generateAuditText(sm, dm, state.std, state.drx, null);
+    const expectedSm = isFinite(sm.paybackMo) ? sm.paybackMo.toFixed(1) : 'не окупается';
+    const expectedDm = isFinite(dm.paybackMo) ? dm.paybackMo.toFixed(1) : 'не окупается';
+    const pass = text.includes(expectedSm) && text.includes(expectedDm);
+    add('57. Аудит покупки содержит сроки окупаемости обеих моделей',
+        `${expectedSm}; ${expectedDm}`, pass ? `${expectedSm}; ${expectedDm}` : text, pass);
+    state.ui.acquisitionMode = originalMode;
+  }
+
+  /* ── 58. Rental audit includes ownership and excludes payback wording ── */
+  {
+    const originalMode = state.ui.acquisitionMode;
+    const originalOffer = state.ui.rentalOfferId;
+    state.ui.acquisitionMode = 'rental';
+    state.ui.rentalOfferId = 'year';
+    const offer = MODEL.rental.offers.find(o => o.id === state.ui.rentalOfferId) || MODEL.rental.offers[0];
+    const drxOps = win.calculateOperations(state.drx, MODEL, win.__taxesOn);
+    const rr = win.calculateRental(drxOps, state.drx, offer, MODEL);
+    const text = win.generateAuditText(win.calc(state.std), win.calc(state.drx), state.std, state.drx, { offer, rr });
+    const hasOwnershipMonth = text.includes(String(rr.ownershipMonth));
+    const hasPayment = text.includes(fCur(rr.paymentPark));
+    const hasPaybackWord = /окупа/i.test(text);
+    const pass = hasOwnershipMonth && hasPayment && !hasPaybackWord;
+    add('58. Аудит аренды содержит платёж и месяц собственности без окупаемости',
+        'ownership=true, payment=true, paybackWord=false',
+        `ownership=${hasOwnershipMonth}, payment=${hasPayment}, paybackWord=${hasPaybackWord}`, pass);
+    state.ui.acquisitionMode = originalMode;
+    state.ui.rentalOfferId = originalOffer;
+  }
+
+  /* ── 59. Loss warning is the first non-empty audit line ── */
+  {
+    const negativeSm = win.calc({ ...state.std, opex: 99999999 });
+    const text = win.generateAuditText(negativeSm, win.calc(state.drx), state.std, state.drx, null);
+    const firstLine = text.split('\n').find(line => line.trim()) || '';
+    add('59. Предупреждение об убытке стоит первой строкой',
+        'Первая строка содержит УБЫТОК', firstLine, firstLine.includes('УБЫТОК'));
   }
 
   win.__taxesOn = false;
