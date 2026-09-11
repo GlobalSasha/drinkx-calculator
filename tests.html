@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DrinkX — автотесты калькулятора</title>
+<style>
+  body { font-family: -apple-system, Arial, sans-serif; margin: 0; padding: 24px; background: #f5f5f5; color: #222; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p.note { font-size: 12px; color: #666; margin: 0 0 16px; }
+  #summary { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+  #banner { padding: 12px 16px; border-radius: 6px; font-weight: 700; font-size: 16px; margin-bottom: 16px; color: #fff; }
+  #banner.ok  { background: #1a7f37; }
+  #banner.bad { background: #c1121f; }
+  table { border-collapse: collapse; width: 100%; background: #fff; font-size: 13px; }
+  th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #eee; position: sticky; top: 0; }
+  td.mono { font-family: ui-monospace, Menlo, monospace; font-size: 12px; white-space: pre-wrap; word-break: break-word; }
+  tr.pass td.verdict { color: #1a7f37; font-weight: 700; }
+  tr.fail td.verdict { color: #c1121f; font-weight: 700; }
+  tr.fail { background: #fff2f2; }
+  td.name { width: 26%; }
+  td.verdict { width: 90px; white-space: nowrap; }
+</style>
+</head>
+<body>
+
+<h1>DrinkX — автотесты расчётных функций (golden set)</h1>
+<p class="note">
+  Фиксирует ТЕКУЩЕЕ поведение calc / calcNPV / calcIRR из index.html (снимок сделан 2026-09-11).
+  Не проверяет, что расчёты «правильные» — только что они не изменились незаметно.
+  Требует запуска через http-сервер (не file://).
+</p>
+
+<div id="summary">Загрузка index.html…</div>
+<div id="banner"></div>
+<table>
+  <thead>
+    <tr><th class="name">Тест</th><th>Ожидание</th><th>Факт</th><th class="verdict">Вердикт</th></tr>
+  </thead>
+  <tbody id="rows"></tbody>
+</table>
+
+<iframe id="app-frame" src="index.html" style="position:absolute;left:-9999px;top:0;width:1px;height:1px;border:0" title="index.html (hidden, for tests)"></iframe>
+
+<script>
+// Tolerance for floating-point comparisons, per spec.
+const EPS = 1e-6;
+function approxEq(a, b) { return typeof a === 'number' && typeof b === 'number' && Math.abs(a - b) < EPS; }
+function exactEq(a, b) { return Object.is(a, b); }
+function isNaNAnywhere(obj) {
+  return Object.values(obj).some(v => typeof v === 'number' && Number.isNaN(v));
+}
+function fmt(v) {
+  if (typeof v === 'number') return Number.isInteger(v) ? String(v) : String(v);
+  if (v === null) return 'null';
+  return String(v);
+}
+function fmtObj(obj, keys) {
+  return keys.map(k => `${k}=${fmt(obj[k])}`).join('\n');
+}
+
+const results = [];
+function add(name, expected, actual, pass) {
+  results.push({ name, expected, actual, pass });
+}
+
+function runTests(win) {
+  // MODEL and `state` are declared with `const` at the top level of index.html's
+  // inline script. Top-level `const`/`let` bindings never become properties of
+  // `window` (unlike top-level `function` declarations, which do — that's why
+  // window.calc/calcNPV/calcIRR work directly). To read MODEL/state from outside
+  // the iframe without editing index.html, inject a tiny script into the *loaded
+  // document instance* — it runs in the same global scope as the original inline
+  // script and can see MODEL/state as bare identifiers, then hands them out via
+  // a new window property. This does not modify the index.html file on disk.
+  const exportScript = win.document.createElement('script');
+  exportScript.textContent = 'window.__TEST_EXPORTS = { MODEL, state };';
+  win.document.body.appendChild(exportScript);
+  const MODEL = win.__TEST_EXPORTS.MODEL;
+  const state = win.__TEST_EXPORTS.state;
+  const calc = win.calc;
+  const calcNPV = win.calcNPV;
+  const calcIRR = win.calcIRR;
+
+  const FIELDS = ['disc','capexTotal','costAmt','costCap','avgCost','cogsPark',
+                  'avgPrice','avgMargin','profitPark','paybackMo',
+                  'yearlyExpenses','profit1Year','profit2Years'];
+
+  /* ── 1. Базовый расчёт std (снимок поведения на 2026-09-11) ── */
+  win.__taxesOn = false;
+  {
+    const expected = {
+      disc: 10, capexTotal: 31500000, costAmt: 23.400000000000002, costCap: 38.6,
+      avgCost: 34.04, cogsPark: 2042400, avgPrice: 200, avgMargin: 165.96,
+      profitPark: 6482600, paybackMo: 4.859161447567334, yearlyExpenses: 66208800,
+      profit1Year: 77791200, profit2Years: 155582400,
+    };
+    const actual = calc({ ...MODEL.defaults.std });
+    let pass = true, firstBad = null;
+    for (const k of FIELDS) {
+      const ok = approxEq(actual[k], expected[k]);
+      if (!ok) { pass = false; firstBad = firstBad || k; }
+    }
+    add('1. calc(std) при значениях по умолчанию — все поля',
+        fmtObj(expected, FIELDS) + (firstBad ? `\n(первое расхождение: ${firstBad})` : ''),
+        fmtObj(actual, FIELDS), pass);
+  }
+
+  /* ── 2. Базовый расчёт drx (снимок поведения на 2026-09-11) ── */
+  {
+    const expected = {
+      disc: 10, capexTotal: 71059815, costAmt: 16, costCap: 24.266666666666666,
+      avgCost: 21.786666666666665, cogsPark: 3268000, avgPrice: 200,
+      avgMargin: 178.21333333333334, profitPark: 26557000,
+      paybackMo: 2.6757470723349774,
+      yearlyExpenses: 41316000, profit1Year: 318684000, profit2Years: 637368000,
+    };
+    const actual = calc({ ...MODEL.defaults.drx });
+    let pass = true, firstBad = null;
+    for (const k of FIELDS) {
+      const ok = approxEq(actual[k], expected[k]);
+      if (!ok) { pass = false; firstBad = firstBad || k; }
+    }
+    add('2. calc(drx) при значениях по умолчанию — все поля',
+        fmtObj(expected, FIELDS) + (firstBad ? `\n(первое расхождение: ${firstBad})` : ''),
+        fmtObj(actual, FIELDS), pass);
+  }
+
+  /* ── 3. Ступени скидки по размеру парка ── */
+  win.__taxesOn = false;
+  [[1, 0], [9, 0], [10, 5], [49, 5], [50, 10], [51, 10]].forEach(([parkSize, expDisc]) => {
+    const actual = calc({ ...MODEL.defaults.std, parkSize });
+    add(`3. Скидка при parkSize=${parkSize}`,
+        `disc=${expDisc}`, `disc=${actual.disc}`, exactEq(actual.disc, expDisc));
+  });
+
+  /* ── 4. parkSize=0: capexTotal=0, без NaN ── */
+  {
+    const actual = calc({ ...MODEL.defaults.std, parkSize: 0 });
+    const pass = actual.capexTotal === 0 && !isNaNAnywhere(actual);
+    add('4. parkSize=0 — capexTotal=0 и ни одно поле не NaN',
+        'capexTotal=0, NaN отсутствует',
+        `capexTotal=${actual.capexTotal}, есть NaN: ${isNaNAnywhere(actual)}`, pass);
+  }
+
+  /* ── 5. Отрицательная прибыль ── */
+  {
+    const actual = calc({ ...MODEL.defaults.std, opex: 99999999 });
+    const pass = actual.paybackMo === Infinity && exactEq(actual.paybackDate, 'Никогда (убыток)');
+    add('5. Отрицательная profitPark → paybackMo=Infinity, paybackDate="Никогда (убыток)"',
+        'paybackMo=Infinity, paybackDate="Никогда (убыток)"',
+        `paybackMo=${actual.paybackMo}, paybackDate="${actual.paybackDate}"`, pass);
+  }
+
+  /* ── 6. Налоги вкл/выкл на одном входе ── */
+  {
+    win.__taxesOn = false;
+    const off = calc({ ...MODEL.defaults.std });
+    win.__taxesOn = true;
+    const on = calc({ ...MODEL.defaults.std });
+    win.__taxesOn = false;
+    const differ = !approxEq(off.profitPark, on.profitPark);
+    add('6a. Налоги вкл/выкл — результаты различаются',
+        'profitPark(вкл) ≠ profitPark(выкл)',
+        `выкл=${off.profitPark}, вкл=${on.profitPark}`, differ);
+    add('6b. Налоги вкл — прибыль строго меньше',
+        'profitPark(вкл) < profitPark(выкл)',
+        `вкл=${on.profitPark} < выкл=${off.profitPark}: ${on.profitPark < off.profitPark}`,
+        on.profitPark < off.profitPark);
+  }
+
+  /* ── 7. fraud вне диапазона ── */
+  {
+    win.__taxesOn = false;
+    const a = calc({ ...MODEL.defaults.std, fraud: -10 });
+    const b = calc({ ...MODEL.defaults.std, fraud: 0 });
+    add('7a. fraud=-10 совпадает с fraud=0',
+        `profitPark(fraud=0)=${b.profitPark}`, `profitPark(fraud=-10)=${a.profitPark}`,
+        approxEq(a.profitPark, b.profitPark));
+
+    const c = calc({ ...MODEL.defaults.std, fraud: 150 });
+    const d = calc({ ...MODEL.defaults.std, fraud: 100 });
+    add('7b. fraud=150 совпадает с fraud=100',
+        `profitPark(fraud=100)=${d.profitPark}`, `profitPark(fraud=150)=${c.profitPark}`,
+        approxEq(c.profitPark, d.profitPark));
+  }
+
+  /* ── 8. calcNPV при capex=0 ── */
+  {
+    const profit = 100000, months = 36;
+    const expected = 3037475.4109781366; // -0 + profit*(1-(1+r)^-months)/r, r из MODEL.discountRate
+    const actual = calcNPV(profit, 0, months);
+    add('8. calcNPV(profit, capex=0) — приведённая сумма прибыли без вычета CAPEX',
+        `≈${expected}`, `${actual}`, approxEq(actual, expected));
+  }
+
+  /* ── 9. calcIRR при capex=0 ── */
+  {
+    const actual = calcIRR(100000, 0, 36);
+    add('9. calcIRR(profit, capex=0) → null', 'null', fmt(actual), actual === null);
+  }
+
+  /* ── 10. calcIRR когда суммарная прибыль меньше вложений ── */
+  {
+    const actual = calcIRR(1000, 1000000, 36); // 1000*36 = 36000 < 1000000
+    add('10. calcIRR при profit·months < capex → null (без зацикливания)',
+        'null', fmt(actual), actual === null);
+  }
+
+  /* ── 11. calcIRR на нормальном входе ── */
+  {
+    const actual = calcIRR(50000, 1000000, 36);
+    const pass = typeof actual === 'number' && isFinite(actual) && actual > -100 && actual < 1000;
+    add('11. calcIRR на нормальном входе — число в разумных границах',
+        'число, -100% < IRR < 1000%', fmt(actual), pass);
+  }
+
+  /* ── 12. calcNPV монотонность по горизонту ── */
+  {
+    win.__taxesOn = false;
+    const sm = calc({ ...MODEL.defaults.std });
+    const n36 = calcNPV(sm.profitPark, sm.capexTotal, 36);
+    const n48 = calcNPV(sm.profitPark, sm.capexTotal, 48);
+    const n60 = calcNPV(sm.profitPark, sm.capexTotal, 60);
+    const pass = n36 < n48 && n48 < n60;
+    add('12. calcNPV(36) < calcNPV(48) < calcNPV(60) при положительной прибыли',
+        'NPV36 < NPV48 < NPV60', `${n36} < ${n48} < ${n60}`, pass);
+  }
+
+  /* ── 13. Константы модели ── */
+  add('13a. MODEL.vatRate = 0.22', '0.22', fmt(MODEL.vatRate), exactEq(MODEL.vatRate, 0.22));
+  add('13b. MODEL.profitTaxRate = 0.20', '0.2', fmt(MODEL.profitTaxRate), exactEq(MODEL.profitTaxRate, 0.20));
+  add('13c. MODEL.discountRate = 0.12', '0.12', fmt(MODEL.discountRate), exactEq(MODEL.discountRate, 0.12));
+
+  /* ── 14. state совпадает с MODEL.defaults на старте ── */
+  ['std', 'drx'].forEach(key => {
+    const a = state[key], b = MODEL.defaults[key];
+    const keys = Object.keys(b);
+    const pass = keys.every(k => exactEq(a[k], b[k]));
+    add(`14. state.${key} совпадает с MODEL.defaults.${key}`,
+        fmtObj(b, keys), fmtObj(a, keys), pass);
+  });
+
+  /* ── 15. Ступени parkDiscounts идут по убыванию minSize ── */
+  {
+    const tiers = MODEL.parkDiscounts;
+    let pass = tiers.length >= 2;
+    for (let i = 1; i < tiers.length; i++) {
+      if (!(tiers[i - 1].minSize > tiers[i].minSize)) pass = false;
+    }
+    add('15. MODEL.parkDiscounts идут по убыванию minSize',
+        'каждый следующий minSize меньше предыдущего',
+        tiers.map(t => `minSize=${t.minSize}`).join(', '), pass);
+  }
+
+  /* ── 16. Себестоимость напитка по доле молочных ── */
+  {
+    win.__taxesOn = false;
+    const zero = calc({ ...MODEL.defaults.std, milkShare: 0 });
+    add('16a. milkShare=0% → avgCost = с/с чёрного кофе (costAmt)',
+        `avgCost=costAmt=${zero.costAmt}`, `avgCost=${zero.avgCost}, costAmt=${zero.costAmt}`,
+        approxEq(zero.avgCost, zero.costAmt));
+
+    const hundred = calc({ ...MODEL.defaults.std, milkShare: 100 });
+    add('16b. milkShare=100% → avgCost = с/с молочного напитка (costCap)',
+        `avgCost=costCap=${hundred.costCap}`, `avgCost=${hundred.avgCost}, costCap=${hundred.costCap}`,
+        approxEq(hundred.avgCost, hundred.costCap));
+  }
+
+  /* ── 17. paybackDate is derived from the calendar, so it must not be frozen
+        in the golden set. Assert the rule instead of the value. ── */
+  {
+    const actual = calc({ ...state.drx });
+    const months = Math.ceil(actual.paybackMo);
+    const expectDate = new Date();
+    expectDate.setMonth(expectDate.getMonth() + months);
+    let s2 = expectDate.toLocaleString('ru-RU', { month: 'long', year: 'numeric' });
+    s2 = s2[0].toUpperCase() + s2.slice(1);
+    add('17. paybackDate = текущий месяц + ceil(paybackMo), а не зафиксированная строка',
+        s2, actual.paybackDate, exactEq(actual.paybackDate, s2));
+  }
+
+  const calculateOperations = win.calculateOperations;
+  const calculateRental = win.calculateRental;
+
+  /* ── 29. Платёж за парк = ставка тарифа × размер парка ── */
+  {
+    win.__taxesOn = false;
+    const d = { ...MODEL.defaults.drx };
+    const ops = calculateOperations(d, MODEL, false);
+    let pass = true;
+    const expectedDetails = [];
+    const actualDetails = [];
+    ['monthly', 'half', 'year'].forEach(id => {
+      const offer = MODEL.rental.offers.find(o => o.id === id);
+      const rr = calculateRental(ops, d, offer, MODEL);
+      const expected = offer.payment * d.parkSize;
+      expectedDetails.push(`${id}: ${expected}`);
+      actualDetails.push(`${id}: ${rr.paymentPark}`);
+      if (!approxEq(rr.paymentPark, expected)) pass = false;
+    });
+    add('29. paymentPark = ставка тарифа × размер парка для всех трёх тарифов',
+        expectedDetails.join(', '), actualDetails.join(', '), pass);
+  }
+
+  /* ── 30. profitAfterRent = операционная прибыль + возвращённый OPEX − платёж за парк ── */
+  {
+    win.__taxesOn = false;
+    const d = { ...MODEL.defaults.drx };
+    const ops = calculateOperations(d, MODEL, false);
+    const offer = MODEL.rental.offers.find(o => o.id === 'year');
+    const rr = calculateRental(ops, d, offer, MODEL);
+    const expected = ops.profitPark + d.opex * d.parkSize - rr.paymentPark;
+    add('30. profitAfterRent(year) = profitPark + opex·parkSize − paymentPark',
+        `${expected}`, `${rr.profitAfterRent}`, approxEq(rr.profitAfterRent, expected));
+  }
+
+  /* ── 31. Клиентский OPEX в аренде не вычитается ── */
+  {
+    win.__taxesOn = false;
+    const offer = MODEL.rental.offers.find(o => o.id === 'year');
+    const d1 = { ...MODEL.defaults.drx };
+    const ops1 = calculateOperations(d1, MODEL, false);
+    const rr1 = calculateRental(ops1, d1, offer, MODEL);
+    const d2 = { ...MODEL.defaults.drx, opex: d1.opex * 2 };
+    const ops2 = calculateOperations(d2, MODEL, false);
+    const rr2 = calculateRental(ops2, d2, offer, MODEL);
+    add('31. Удвоение opex не меняет profitAfterRent',
+        `${rr1.profitAfterRent}`, `${rr2.profitAfterRent}`,
+        approxEq(rr1.profitAfterRent, rr2.profitAfterRent));
+  }
+
+  /* ── 32. Зачёт = 70% уплаченного, не больше цены станции ── */
+  {
+    win.__taxesOn = false;
+    const d = { ...MODEL.defaults.drx };
+    const ops = calculateOperations(d, MODEL, false);
+    const offer = MODEL.rental.offers.find(o => o.id === 'half');
+    const rr = calculateRental(ops, d, offer, MODEL);
+    let pass = rr.buyout.length > 0;
+    for (const row of rr.buyout) {
+      if (!approxEq(row.credit, Math.min(row.paid * 0.70, d.basePrice))) pass = false;
+      if (row.credit > d.basePrice + 1e-6) pass = false;
+    }
+    add('32. buyout[].credit = min(70% paid, basePrice) для каждой контрольной точки',
+        'credit = min(0.7·paid, basePrice), всегда ≤ basePrice',
+        rr.buyout.map(r => `m${r.month}: credit=${r.credit}`).join(', '), pass);
+  }
+
+  /* ── 33. paid + topUp = цена станции + 30% уплаченного (пока зачёт не упёрся в потолок) ── */
+  {
+    win.__taxesOn = false;
+    const d = { ...MODEL.defaults.drx };
+    const ops = calculateOperations(d, MODEL, false);
+    const offer = MODEL.rental.offers.find(o => o.id === 'year');
+    const rr = calculateRental(ops, d, offer, MODEL);
+    let pass = true;
+    const details = [];
+    rr.buyout.filter(r => r.month <= 9).forEach(row => {
+      const expected = d.basePrice + 0.30 * row.paid;
+      const actual = row.paid + row.topUp;
+      if (!approxEq(actual, expected)) pass = false;
+      details.push(`m${row.month}: expected=${expected}, actual=${actual}`);
+    });
+    add('33. Для месяцев 3, 6, 9: paid+topUp = basePrice + 30%·paid',
+        'равенство для каждого из месяцев 3, 6, 9', details.join(' | '), pass);
+  }
+
+  /* ── 34. Помесячный тариф: выкуп недоступен ── */
+  {
+    win.__taxesOn = false;
+    const d = { ...MODEL.defaults.drx };
+    const ops = calculateOperations(d, MODEL, false);
+    const offer = MODEL.rental.offers.find(o => o.id === 'monthly');
+    const rr = calculateRental(ops, d, offer, MODEL);
+    const pass = rr.buyout.length === 0 && rr.ownershipMonth === null;
+    add('34. monthly: buyout=[] и ownershipMonth=null',
+        'buyout.length=0, ownershipMonth=null',
+        `buyout.length=${rr.buyout.length}, ownershipMonth=${fmt(rr.ownershipMonth)}`, pass);
+  }
+
+  /* ── 35. ownershipMonth(year) = ceil(basePrice / (payment × 0.7)) ── */
+  {
+    win.__taxesOn = false;
+    const d = { ...MODEL.defaults.drx };
+    const ops = calculateOperations(d, MODEL, false);
+    const offer = MODEL.rental.offers.find(o => o.id === 'year');
+    const rr = calculateRental(ops, d, offer, MODEL);
+    const expected = Math.ceil(d.basePrice / (offer.payment * 0.70));
+    add('35. ownershipMonth(year) = ceil(basePrice / (payment·0.7))',
+        `${expected}`, `${rr.ownershipMonth}`, exactEq(rr.ownershipMonth, expected));
+  }
+
+  /* ── 36. breakEvenCupsPerDay — подставив его, получаем profitAfterRent ≈ 0 ── */
+  {
+    win.__taxesOn = false;
+    const d = { ...MODEL.defaults.drx, parkSize: 1 };
+    const ops = calculateOperations(d, MODEL, false);
+    const offer = MODEL.rental.offers.find(o => o.id === 'year');
+    const rr = calculateRental(ops, d, offer, MODEL);
+    const dAtBreakEven = { ...d, cupsPerDay: rr.breakEvenCupsPerDay };
+    const opsAtBreakEven = calculateOperations(dAtBreakEven, MODEL, false);
+    const rrAtBreakEven = calculateRental(opsAtBreakEven, dAtBreakEven, offer, MODEL);
+    const pass = rr.breakEvenCupsPerDay != null && Math.abs(rrAtBreakEven.profitAfterRent) < 1;
+    add('36. Подстановка breakEvenCupsPerDay даёт profitAfterRent ≈ 0',
+        '|profitAfterRent| < 1 ₽', `breakEvenCupsPerDay=${rr.breakEvenCupsPerDay}, profitAfterRent=${rrAtBreakEven.profitAfterRent}`,
+        pass);
+  }
+
+  /* ── 37. Скидка по парку к аренде не применяется ── */
+  {
+    win.__taxesOn = false;
+    const offer = MODEL.rental.offers.find(o => o.id === 'year');
+    const d1 = { ...MODEL.defaults.drx, parkSize: 1 };
+    const ops1 = calculateOperations(d1, MODEL, false);
+    const rr1 = calculateRental(ops1, d1, offer, MODEL);
+    const d50 = { ...MODEL.defaults.drx, parkSize: 50 };
+    const ops50 = calculateOperations(d50, MODEL, false);
+    const rr50 = calculateRental(ops50, d50, offer, MODEL);
+    add('37. paymentPark(50 станций) = 50 × paymentPark(1 станция)',
+        `${50 * rr1.paymentPark}`, `${rr50.paymentPark}`,
+        approxEq(rr50.paymentPark, 50 * rr1.paymentPark));
+  }
+
+  /* ── 38. Полная цена DrinkX равна сумме комплектации и опций на старте ── */
+  {
+    const expected = state.drx.baseKitPrice + state.drx.optionsPrice;
+    add('38. state.drx.basePrice = baseKitPrice + optionsPrice на старте',
+        `${expected}`, `${state.drx.basePrice}`, exactEq(state.drx.basePrice, expected));
+  }
+
+  /* ── 39. updateAll пересчитывает полную цену после изменения опций ── */
+  {
+    const originalBaseKitPrice = state.drx.baseKitPrice;
+    const originalOptionsPrice = state.drx.optionsPrice;
+    state.drx.optionsPrice = originalOptionsPrice + 10000;
+    win.updateAll();
+    const expected = originalBaseKitPrice + originalOptionsPrice + 10000;
+    const actual = state.drx.basePrice;
+    add('39. updateAll пересчитывает basePrice после изменения optionsPrice',
+        `${expected}`, `${actual}`, exactEq(actual, expected));
+    state.drx.baseKitPrice = originalBaseKitPrice;
+    state.drx.optionsPrice = originalOptionsPrice;
+    win.updateAll();
+  }
+
+  /* ── 40. Разделение цены применяется только к DrinkX ── */
+  {
+    const pass = !('baseKitPrice' in state.std) && !('optionsPrice' in state.std);
+    add('40. state.std не содержит baseKitPrice и optionsPrice',
+        'оба ключа отсутствуют',
+        `baseKitPrice: ${'baseKitPrice' in state.std}, optionsPrice: ${'optionsPrice' in state.std}`,
+        pass);
+  }
+
+  win.__taxesOn = false;
+}
+
+function render() {
+  const tbody = document.getElementById('rows');
+  tbody.innerHTML = '';
+  results.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.className = r.pass ? 'pass' : 'fail';
+    tr.innerHTML = `
+      <td class="name">${r.name}</td>
+      <td class="mono">${r.expected}</td>
+      <td class="mono">${r.actual}</td>
+      <td class="verdict">${r.pass ? 'PASS' : 'FAIL'}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  const total = results.length;
+  const passed = results.filter(r => r.pass).length;
+
+  document.getElementById('summary').textContent = `Пройдено ${passed} из ${total}`;
+  const banner = document.getElementById('banner');
+  if (passed === total) {
+    banner.className = 'ok';
+    banner.textContent = `✔ Все тесты пройдены (${passed}/${total})`;
+  } else {
+    banner.className = 'bad';
+    banner.textContent = `✘ Есть проваленные тесты: ${total - passed} из ${total}`;
+  }
+}
+
+const frame = document.getElementById('app-frame');
+frame.addEventListener('load', () => {
+  try {
+    runTests(frame.contentWindow);
+  } catch (e) {
+    document.getElementById('summary').textContent = 'Ошибка при выполнении тестов: ' + e.message;
+    throw e;
+  }
+  render();
+});
+</script>
+</body>
+</html>
