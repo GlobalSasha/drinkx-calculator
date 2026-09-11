@@ -454,6 +454,132 @@ function runTests(win) {
         pass);
   }
 
+  /* ── 41. Purchase cash flow starts with negative CAPEX ── */
+  {
+    const capexTotal = 60000, months = 12;
+    const actual = win.buildMonthlyCashFlow(
+      { profitPark: 5000 },
+      { mode: 'purchase', capexTotal },
+      months
+    );
+    const pass = actual[0] === -capexTotal && actual.length === months + 1;
+    add('41. buildMonthlyCashFlow для покупки — стартовый CAPEX и длина',
+        'cashFlow[0]=-60000, length=13',
+        `cashFlow[0]=${actual[0]}, length=${actual.length}`, pass);
+  }
+
+  /* ── 42. Rental has no upfront CAPEX and uses profitAfterRent each month ── */
+  {
+    const months = 4, profitAfterRent = 12345;
+    const actual = win.buildMonthlyCashFlow(
+      { profitPark: 99999 },
+      { mode: 'rental', profitAfterRent },
+      months
+    );
+    const monthlyValuesMatch = actual.slice(1).every(value => value === profitAfterRent);
+    const pass = actual[0] === 0 && actual.length === months + 1 && monthlyValuesMatch;
+    add('42. buildMonthlyCashFlow для аренды — нулевой старт и profitAfterRent ежемесячно',
+        'cashFlow[0]=0, length=5, месяцы 1–4 равны 12345',
+        `cashFlow=${actual.join(', ')}`, pass);
+  }
+
+  /* ── 43. Sum of [-CAPEX, profit × N] equals the old profit·N − CAPEX formula ── */
+  {
+    const profitPark = 5000, capexTotal = 60000, month = 12;
+    const cashFlow = win.buildMonthlyCashFlow(
+      { profitPark },
+      { mode: 'purchase', capexTotal },
+      month
+    );
+    const actual = cashFlow.slice(0, month + 1).reduce((sum, value) => sum + value, 0);
+    const expected = profitPark * month - capexTotal;
+    add('43. Кумулятивный cash flow покупки совпадает со старой формулой',
+        `${expected}`, `${actual}`, exactEq(actual, expected));
+  }
+
+  /* ── 44. denom=(3000−1000)·10=20000; equal at month 3, exceeded at month 4 ── */
+  {
+    const actual = win.calculateCrossoverMonth(60000, 1000, 3000, 10);
+    add('44. Первый месяц, когда аренда строго дороже владения',
+        '4', `${actual}`, exactEq(actual, 4));
+  }
+
+  /* ── 45. A non-positive delta has no crossover; UI does not show Infinity ── */
+  {
+    const crossover = win.calculateCrossoverMonth(60000, 3000, 3000, 10);
+    const originalStdOpex = state.std.opex;
+    const originalTaxesOn = win.__taxesOn;
+    state.std.opex = 99999999;
+    win.__taxesOn = false;
+    win.updateAll();
+    const dashboardText = win.document.getElementById('d-payback-val').textContent;
+    const pass = crossover === null && !dashboardText.includes('Infinity');
+    add('45. Нет crossover при delta≤0, dashboard не содержит Infinity',
+        'crossover=null, текст без "Infinity"',
+        `crossover=${fmt(crossover)}, dashboard="${dashboardText}"`, pass);
+    state.std.opex = originalStdOpex;
+    win.__taxesOn = originalTaxesOn;
+    win.updateAll();
+  }
+
+  /* ── 46. Year offer stops rent at ownership and then accrues only OPEX ── */
+  {
+    const d = { ...MODEL.defaults.drx };
+    const offer = MODEL.rental.offers.find(o => o.id === 'year');
+    const ops = calculateOperations(d, MODEL, false);
+    const rr = calculateRental(ops, d, offer, MODEL);
+    const months = [24, 36, 60];
+    const expected = [119100000, 121200000, 125400000];
+    const actual = months.map(month =>
+      win.calculateRentalCost(offer, rr.ownershipMonth, d.opex, d.parkSize, month));
+    add('46. Стоимость аренды year на 24, 36 и 60 месяцах',
+        expected.join(', '), actual.join(', '),
+        actual.every((value, index) => exactEq(value, expected[index])));
+  }
+
+  /* ── 47. Half-year offer stops rent at ownership and then accrues only OPEX ── */
+  {
+    const d = { ...MODEL.defaults.drx };
+    const offer = MODEL.rental.offers.find(o => o.id === 'half');
+    const ops = calculateOperations(d, MODEL, false);
+    const rr = calculateRental(ops, d, offer, MODEL);
+    const months = [12, 60];
+    const expected = [118425000, 126825000];
+    const actual = months.map(month =>
+      win.calculateRentalCost(offer, rr.ownershipMonth, d.opex, d.parkSize, month));
+    add('47. Стоимость аренды half на 12 и 60 месяцах',
+        expected.join(', '), actual.join(', '),
+        actual.every((value, index) => exactEq(value, expected[index])));
+  }
+
+  /* ── 48. Monthly offer keeps accruing rent linearly without buyout ── */
+  {
+    const d = { ...MODEL.defaults.drx };
+    const offer = MODEL.rental.offers.find(o => o.id === 'monthly');
+    const ops = calculateOperations(d, MODEL, false);
+    const rr = calculateRental(ops, d, offer, MODEL);
+    const at12 = win.calculateRentalCost(offer, rr.ownershipMonth, d.opex, d.parkSize, 12);
+    const at60 = win.calculateRentalCost(offer, rr.ownershipMonth, d.opex, d.parkSize, 60);
+    add('48. Стоимость monthly на 60 месяцах ровно в 5 раз выше, чем на 12',
+        `${at12 * 5}`, `${at60}`, exactEq(at60, at12 * 5));
+  }
+
+  /* ── 49. After ownership, one more month adds only the client's OPEX ── */
+  {
+    const d = { ...MODEL.defaults.drx };
+    const offer = MODEL.rental.offers.find(o => o.id === 'year');
+    const ops = calculateOperations(d, MODEL, false);
+    const rr = calculateRental(ops, d, offer, MODEL);
+    const atOwnership = win.calculateRentalCost(
+      offer, rr.ownershipMonth, d.opex, d.parkSize, rr.ownershipMonth);
+    const afterOwnership = win.calculateRentalCost(
+      offer, rr.ownershipMonth, d.opex, d.parkSize, rr.ownershipMonth + 1);
+    const expectedDelta = d.opex * d.parkSize;
+    const actualDelta = afterOwnership - atOwnership;
+    add('49. После ownershipMonth стоимость растёт только на OPEX парка',
+        `${expectedDelta}`, `${actualDelta}`, exactEq(actualDelta, expectedDelta));
+  }
+
   win.__taxesOn = false;
 }
 

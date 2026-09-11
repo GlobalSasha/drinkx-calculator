@@ -478,6 +478,19 @@ function calculateRental(ops, d, offer, model) {
            breakEvenCupsPerDay, buyout, ownershipMonth };
 }
 
+// Rental cost through month N. Buyout-enabled offers stop billing rent
+// once ownership transfers at ownershipMonth (paid via calculateRental);
+// from then on the client only carries its own OPEX per unit, same as
+// an owner would. Offers without buyout keep accruing rent linearly for
+// the whole horizon.
+function calculateRentalCost(offer, ownershipMonth, opexPerUnit, parkSize, months) {
+  if (!offer.buyout || months <= ownershipMonth) {
+    return offer.payment * parkSize * months;
+  }
+  return offer.payment * parkSize * ownershipMonth
+       + opexPerUnit * parkSize * (months - ownershipMonth);
+}
+
 function buildMonthlyCashFlow(ops, financing, months) {
   // financing.mode: 'purchase' | 'rental'. Rental has no upfront capex — the
   // station is never bought outright — and each month contributes the
@@ -487,6 +500,16 @@ function buildMonthlyCashFlow(ops, financing, months) {
   const cashFlow = [-initial];
   for (let month = 1; month <= months; month++) cashFlow.push(monthlyProfit);
   return cashFlow;
+}
+
+function calculateCrossoverMonth(capexTotal, opexPerUnit, rentPaymentPerUnit, parkSize, maxMonths = 60) {
+  // Ownership cost through month N: capexTotal + opexPerUnit * parkSize * N.
+  // Rental cost through month N: rentPaymentPerUnit * parkSize * N.
+  // Return the first month when rental is strictly more expensive than ownership.
+  const denom = (rentPaymentPerUnit - opexPerUnit) * parkSize;
+  if (denom <= 0) return null;
+  const month = Math.floor(capexTotal / denom) + 1;
+  return month <= maxMonths ? month : null;
 }
 
 function calc(d) {
@@ -865,8 +888,31 @@ document.getElementById('app').innerHTML = `
     </div>
     <div style="margin-top:14px;padding:10px 14px;background:rgba(249,115,22,0.08);border:1px solid rgba(124,45,18,0.15);border-radius:8px;display:flex;align-items:flex-start;gap:10px">
       <span class="ar-micro" style="color:var(--ar-surface)">ℹ ФОРМУЛА</span>
-      <p style="font-size:11px;color:var(--ar-ink);line-height:1.5;font-weight:300;flex:1">Накопительная прибыль = (Ежемесячная прибыль × Месяцы) − CAPEX. Пересечение нулевой оси = полная окупаемость.</p>
+      <p id="cf-formula-text" style="font-size:11px;color:var(--ar-ink);line-height:1.5;font-weight:300;flex:1">Накопительная прибыль = (Ежемесячная прибыль × Месяцы) − CAPEX. Пересечение нулевой оси = полная окупаемость.</p>
     </div>
+  </div>
+
+  <!-- Purchase vs rental -->
+  <div class="ar-card" style="padding:22px 28px">
+    <h2 class="ar-micro" style="color:var(--ar-deep);margin-bottom:12px">ПОКУПКА ИЛИ АРЕНДА</h2>
+    <p id="purchase-rental-summary" style="font-size:14px;color:var(--ar-ink);line-height:1.55;font-weight:400;margin-bottom:16px">—</p>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;color:var(--ar-ink)">
+        <thead>
+          <tr style="border-bottom:1px solid rgba(124,45,18,0.18)">
+            <th style="padding:7px 6px;text-align:left;font-weight:500">Горизонт</th>
+            <th style="padding:7px 6px;text-align:right;font-weight:500">Покупка с обслуживанием</th>
+            <th id="purchase-rental-heading" style="padding:7px 6px;text-align:right;font-weight:500">Аренда</th>
+          </tr>
+        </thead>
+        <tbody id="purchase-rental-rows"></tbody>
+      </table>
+    </div>
+    <ul style="margin:16px 0 0;padding-left:18px;color:var(--ar-ink);font-size:12px;line-height:1.65;font-weight:300">
+      <li>Станция самообслуживания работает без бариста.</li>
+      <li id="purchase-rental-ownership-note">У части тарифов аренды предусмотрен переход станции в собственность клиента после выкупа; в помесячном тарифе выкупа нет.</li>
+    </ul>
+    <p style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(124,45,18,0.12);font-size:10px;color:var(--ar-deep);line-height:1.5;font-weight:300">OPEX клиента в расчёте стоимости владения — оценочное значение, а не подтверждённый или аудированный показатель.</p>
   </div>
 
   <!-- Advanced Section -->
@@ -1128,18 +1174,33 @@ function initChart() {
   });
 }
 
-function updateChart(sm, dm) {
+function updateChart(sm, dm, isRental, offer, rr) {
   if (!chart) return;
   const periodMo = window.__periodMo || 36;
   if (chart.data.labels.length !== periodMo + 1) {
     chart.data.labels = Array.from({length: periodMo + 1}, (_, i) => i);
-    chart.data.datasets[0].data = new Array(periodMo + 1).fill(0);
-    chart.data.datasets[1].data = new Array(periodMo + 1).fill(0);
   }
-  for (let i = 0; i <= periodMo; i++) {
-    chart.data.datasets[0].data[i] = Math.round(sm.profitPark * i - sm.capexTotal);
-    chart.data.datasets[1].data[i] = Math.round(dm.profitPark * i - dm.capexTotal);
-  }
+
+  const cumulative = cashFlow => {
+    let total = 0;
+    return cashFlow.map(amount => Math.round(total += amount));
+  };
+  const stdCashFlow = buildMonthlyCashFlow(
+    sm,
+    { mode: 'purchase', capexTotal: sm.capexTotal },
+    periodMo
+  );
+  const drxCashFlow = buildMonthlyCashFlow(
+    dm,
+    isRental
+      ? { mode: 'rental', profitAfterRent: rr.profitAfterRent }
+      : { mode: 'purchase', capexTotal: dm.capexTotal },
+    periodMo
+  );
+
+  chart.data.datasets[0].data = cumulative(stdCashFlow);
+  chart.data.datasets[1].data = cumulative(drxCashFlow);
+  chart.data.datasets[1].label = isRental ? `DrinkX — аренда, ${offer.label}` : 'DrinkX';
   chart.update();
 }
 
@@ -1158,6 +1219,9 @@ function updateAll() {
   // Rental mode — additive, DrinkX column only. Purchase-mode code paths
   // above are untouched and always run regardless of state.ui.acquisitionMode.
   const isRental = state.ui.acquisitionMode === 'rental';
+  const offer = MODEL.rental.offers.find(o => o.id === state.ui.rentalOfferId) || MODEL.rental.offers[0];
+  const drxOps = calculateOperations(state.drx, MODEL, window.__taxesOn);
+  const rr = calculateRental(drxOps, state.drx, offer, MODEL);
   document.getElementById('drx-block1-purchase')?.classList.toggle('hidden', isRental);
   document.getElementById('drx-block1-rental')?.classList.toggle('hidden', !isRental);
   document.getElementById('drx-block4-purchase')?.classList.toggle('hidden', isRental);
@@ -1169,10 +1233,6 @@ function updateAll() {
   syncAcquisitionControls();
 
   if (isRental) {
-    const offer = MODEL.rental.offers.find(o => o.id === state.ui.rentalOfferId) || MODEL.rental.offers[0];
-    const drxOps = calculateOperations(state.drx, MODEL, window.__taxesOn);
-    const rr = calculateRental(drxOps, state.drx, offer, MODEL);
-
     setText('drx-rental-upfront', '0 ₽');
     setText('drx-rental-payment-station', fCur(offer.payment));
     setText('drx-rental-payment-station-sub', 'в месяц, без НДС');
@@ -1228,11 +1288,42 @@ function updateAll() {
     }
   }
 
+  // ── Purchase vs rental ─────────────────────────────────
+  const crossoverMonth = calculateCrossoverMonth(
+    dm.capexTotal,
+    state.drx.opex,
+    offer.payment,
+    state.drx.parkSize
+  );
+  setText('purchase-rental-summary', crossoverMonth === 1
+    ? 'Аренда дороже владения уже с первого месяца — на этом горизонте выгоднее сразу покупать.'
+    : crossoverMonth == null
+      ? 'На горизонте до 60 месяцев аренда не становится дороже владения.'
+      : `На горизонте до ${crossoverMonth - 1} месяцев дешевле аренда, дальше — покупка со своим обслуживанием.`);
+  setText('purchase-rental-heading', `Аренда, ${offer.label}`);
+  setText('purchase-rental-ownership-note', isRental
+    ? offer.buyout
+      ? `По выбранному договору станция переходит в собственность на ${rr.ownershipMonth}-м месяце без доплаты.`
+      : 'Помесячный договор выкупа не предусматривает: оборудование остаётся в нашей собственности.'
+    : 'У части тарифов аренды предусмотрен переход станции в собственность клиента после выкупа; в помесячном тарифе выкупа нет.');
+  const comparisonRows = document.getElementById('purchase-rental-rows');
+  if (comparisonRows) {
+    comparisonRows.innerHTML = [12, 24, 36, 60].map(months => {
+      const ownershipCost = dm.capexTotal + state.drx.opex * state.drx.parkSize * months;
+      const rentalCost = calculateRentalCost(offer, rr.ownershipMonth, state.drx.opex, state.drx.parkSize, months);
+      return `
+        <tr style="border-bottom:1px solid rgba(124,45,18,0.08)">
+          <td style="padding:7px 6px">${months} мес.</td>
+          <td style="padding:7px 6px;text-align:right">${fCur(ownershipCost)}</td>
+          <td style="padding:7px 6px;text-align:right">${fCur(rentalCost)}</td>
+        </tr>`;
+    }).join('');
+  }
+
   // ── Dashboard ──────────────────────────────────────────
   const profitDiff  = dm.profitPark - sm.profitPark;
   const marginDiff  = dm.avgMargin  - sm.avgMargin;
   const marginPct   = sm.avgMargin > 0 ? (marginDiff / sm.avgMargin) * 100 : 0;
-  const paybackDiff = sm.paybackMo  - dm.paybackMo;
 
   updateDashCard('d-profit',
     fLargeRu(profitDiff, true),
@@ -1243,13 +1334,22 @@ function updateAll() {
     (marginDiff > 0 ? '+' : '') + fCost(marginDiff) + marginPctStr,
     marginDiff >= 0, false);
 
-  const bothLoss = !isFinite(sm.paybackMo) && !isFinite(dm.paybackMo);
-  updateDashCard('d-payback',
-    bothLoss ? 'Оба убыточны' :
-    paybackDiff === 0 ? 'Одинаково' :
-    paybackDiff > 0 ? `Быстрее на ${paybackDiff.toFixed(1)} мес.` :
-    `Медленнее на ${Math.abs(paybackDiff).toFixed(1)} мес.`,
-    paybackDiff > 0, paybackDiff === 0 || bothLoss);
+  const stdPaysBack = isFinite(sm.paybackMo);
+  const drxPaysBack = isFinite(dm.paybackMo);
+  if (!stdPaysBack && !drxPaysBack) {
+    updateDashCard('d-payback', 'Оба убыточны', false, true);
+  } else if (!stdPaysBack) {
+    updateDashCard('d-payback', 'DrinkX окупается, обычная — никогда', true, false);
+  } else if (!drxPaysBack) {
+    updateDashCard('d-payback', 'Обычная окупается, DrinkX — никогда', false, false);
+  } else {
+    const paybackDiff = sm.paybackMo - dm.paybackMo;
+    updateDashCard('d-payback',
+      paybackDiff === 0 ? 'Одинаково' :
+      paybackDiff > 0 ? `Быстрее на ${paybackDiff.toFixed(1)} мес.` :
+      `Медленнее на ${Math.abs(paybackDiff).toFixed(1)} мес.`,
+      paybackDiff > 0, paybackDiff === 0);
+  }
 
   // ── Hero Banner ────────────────────────────────────────
   const periodMo = window.__periodMo || 36;
@@ -1295,9 +1395,6 @@ function updateAll() {
 
   const irrEl = document.getElementById('adv-irr-drx');
   if (state.ui.acquisitionMode === 'rental') {
-    const offer = MODEL.rental.offers.find(o => o.id === state.ui.rentalOfferId) || MODEL.rental.offers[0];
-    const drxOps = calculateOperations(state.drx, MODEL, window.__taxesOn);
-    const rr = calculateRental(drxOps, state.drx, offer, MODEL);
     const rentalNPV = calcNPV(rr.profitAfterRent, 0, periodMo);
     setText('adv-npv-drx', fLargeRu(rentalNPV));
     if (irrEl) {
@@ -1311,7 +1408,10 @@ function updateAll() {
     irrEl.removeAttribute('title');
   }
 
-  updateChart(sm, dm);
+  setText('cf-formula-text', isRental
+    ? 'Накопительная прибыль DrinkX = Прибыль после аренды × Месяцы, без вычета CAPEX. Линия DrinkX отражает экономику после арендного платежа; обычная кофемашина — экономику покупки с вычетом CAPEX.'
+    : 'Накопительная прибыль = (Ежемесячная прибыль × Месяцы) − CAPEX. Пересечение нулевой оси = полная окупаемость.');
+  updateChart(sm, dm, isRental, offer, rr);
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1328,12 +1428,14 @@ window.toggleAdv = function() {
    INPUT LISTENERS
 ═══════════════════════════════════════════════════════════ */
 function setupInputListeners() {
+  const nonNegativeFields = new Set(['basePrice', 'baseKitPrice', 'optionsPrice', 'parkSize']);
   ['std','drx'].forEach(key => {
     Object.keys(state[key]).forEach(field => {
       if (field === 'name') return;
       const el = document.getElementById(`${key}-${field}`);
       if (el) el.addEventListener('input', () => {
-        state[key][field] = Number(el.value) || 0;
+        const value = Number(el.value) || 0;
+        state[key][field] = nonNegativeFields.has(field) ? Math.max(0, value) : value;
         updateAll();
       });
     });
